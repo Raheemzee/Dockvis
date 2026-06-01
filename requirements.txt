@@ -1,6 +1,6 @@
 Flask
 Flask-CORS
-rdkit-pypi
+rdkit
 pandas
 numpy
 scikit-learn
