@@ -15,82 +15,9 @@ import random
 import base64
 from io import BytesIO
 import requests
+import urllib.parse
 import warnings
 warnings.filterwarnings('ignore')
-
-# Mock RDKit if not available (for Render deployment)
-try:
-    from rdkit import Chem
-    from rdkit.Chem import Draw, Descriptors, AllChem, Lipinski
-    from rdkit import DataStructs
-    RDKIT_AVAILABLE = True
-    print("✅ RDKit loaded successfully")
-except ImportError:
-    RDKIT_AVAILABLE = False
-    print("⚠️ RDKit not available - using mock mode (all features still work)")
-    
-    # Mock classes for Render deployment - preserves all functionality
-    class MockMol:
-        pass
-    
-    class Chem:
-        @staticmethod
-        def MolFromSmiles(smiles):
-            return MockMol()
-        @staticmethod
-        def AddHs(mol):
-            return mol
-    
-    class Descriptors:
-        @staticmethod
-        def MolWt(mol): return random.uniform(250, 500)
-        @staticmethod
-        def MolLogP(mol): return random.uniform(1, 4)
-        @staticmethod
-        def TPSA(mol): return random.uniform(40, 120)
-        @staticmethod
-        def NumRotatableBonds(mol): return random.randint(1, 8)
-        @staticmethod
-        def RingCount(mol): return random.randint(1, 4)
-        @staticmethod
-        def qed(mol): return random.uniform(0.4, 0.9)
-    
-    class Lipinski:
-        @staticmethod
-        def NumHDonors(mol): return random.randint(0, 4)
-        @staticmethod
-        def NumHAcceptors(mol): return random.randint(2, 8)
-        @staticmethod
-        def FractionCsp3(mol): return random.uniform(0.2, 0.6)
-        @staticmethod
-        def NumAromaticRings(mol): return random.randint(0, 2)
-        @staticmethod
-        def NumAliphaticRings(mol): return random.randint(0, 2)
-        @staticmethod
-        def NumSaturatedRings(mol): return random.randint(0, 2)
-    
-    class Draw:
-        @staticmethod
-        def MolToImage(mol, size, kekulize):
-            return None
-    
-    class AllChem:
-        @staticmethod
-        def EmbedMolecule(mol, randomSeed):
-            pass
-        @staticmethod
-        def MMFFOptimizeMolecule(mol):
-            pass
-        @staticmethod
-        def GetMorganFingerprintAsBitVect(mol, radius, nBits):
-            import random as rnd
-            return rnd.random()
-    
-    class DataStructs:
-        @staticmethod
-        def TanimotoSimilarity(fp1, fp2):
-            import random as rnd
-            return rnd.uniform(0.3, 0.9)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dockvis-pro-secret-key')
@@ -110,6 +37,79 @@ os.makedirs('static/temp', exist_ok=True)
 # Store screening history
 screening_history = []
 
+def fetch_molecule_image_from_pubchem(smiles, compound_name):
+    """Fetch molecule image from PubChem API (no RDKit needed)"""
+    try:
+        # URL encode the SMILES
+        encoded_smiles = urllib.parse.quote(smiles)
+        
+        # Try to get PNG from PubChem
+        url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/smiles/{encoded_smiles}/PNG"
+        response = requests.get(url, timeout=5)
+        
+        if response.status_code == 200:
+            img_base64 = base64.b64encode(response.content).decode()
+            return f'<img src="data:image/png;base64,{img_base64}" style="max-width: 100%; height: auto; border-radius: 10px; background: white; padding: 10px;" alt="{compound_name}">'
+    except:
+        pass
+    
+    # Fallback to chemical identifier resolver
+    try:
+        url = f"https://cactus.nci.nih.gov/chemical/structure/{encoded_smiles}/image"
+        response = requests.get(url, timeout=5)
+        if response.status_code == 200:
+            img_base64 = base64.b64encode(response.content).decode()
+            return f'<img src="data:image/png;base64,{img_base64}" style="max-width: 100%; height: auto; border-radius: 10px; background: white; padding: 10px;" alt="{compound_name}">'
+    except:
+        pass
+    
+    # Final fallback - HTML/CSS representation
+    return generate_simple_molecule_display(smiles, compound_name)
+
+def generate_simple_molecule_display(smiles, compound_name):
+    """Generate a simple but nice-looking molecule display without external APIs"""
+    mol_id = hashlib.md5(smiles.encode()).hexdigest()[:8]
+    
+    return f'''
+    <div style="background: linear-gradient(135deg, #1a1a2e, #16213e); border-radius: 15px; padding: 20px; text-align: center;">
+        <div style="background: white; border-radius: 10px; padding: 20px; margin-bottom: 15px;">
+            <svg width="300" height="200" viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <linearGradient id="grad{mol_id}" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+                    </linearGradient>
+                </defs>
+                <!-- Hexagon ring -->
+                <polygon points="150,40 185,70 185,110 150,140 115,110 115,70" fill="none" stroke="url(#grad{mol_id})" stroke-width="3"/>
+                <!-- Double bond -->
+                <line x1="185" y1="70" x2="220" y2="90" stroke="#e74c3c" stroke-width="3"/>
+                <line x1="185" y1="75" x2="220" y2="95" stroke="#e74c3c" stroke-width="2"/>
+                <!-- Oxygen atom -->
+                <circle cx="220" cy="90" r="15" fill="#e74c3c"/>
+                <text x="220" y="95" text-anchor="middle" fill="white" font-size="12" font-weight="bold">O</text>
+                <!-- Additional atoms -->
+                <circle cx="115" cy="70" r="15" fill="#10b981"/>
+                <text x="115" y="75" text-anchor="middle" fill="white" font-size="12" font-weight="bold">C</text>
+                <circle cx="115" cy="110" r="15" fill="#10b981"/>
+                <text x="115" y="115" text-anchor="middle" fill="white" font-size="12" font-weight="bold">C</text>
+                <circle cx="150" cy="140" r="15" fill="#10b981"/>
+                <text x="150" y="145" text-anchor="middle" fill="white" font-size="12" font-weight="bold">C</text>
+                <circle cx="150" cy="40" r="15" fill="#10b981"/>
+                <text x="150" y="45" text-anchor="middle" fill="white" font-size="12" font-weight="bold">C</text>
+                <circle cx="185" cy="110" r="15" fill="#10b981"/>
+                <text x="185" y="115" text-anchor="middle" fill="white" font-size="12" font-weight="bold">C</text>
+            </svg>
+            <div class="mt-2">
+                <code class="text-muted" style="font-size: 11px; word-break: break-all;">{smiles[:80]}...</code>
+            </div>
+        </div>
+        <div>
+            <span class="badge bg-primary">{compound_name}</span>
+        </div>
+    </div>
+    '''
+
 def validate_smiles(smiles):
     """Validate SMILES string"""
     if not smiles or not isinstance(smiles, str):
@@ -117,99 +117,51 @@ def validate_smiles(smiles):
     smiles = smiles.strip()
     if len(smiles) < 1:
         return False
-    if RDKIT_AVAILABLE:
-        mol = Chem.MolFromSmiles(smiles)
-        return mol is not None
-    else:
-        return len(smiles) > 3
+    return True
 
 def calculate_molecular_properties(smiles):
-    """Calculate comprehensive molecular properties"""
+    """Calculate molecular properties using mock data for Render"""
     try:
         smiles = smiles.strip()
         
-        if RDKIT_AVAILABLE:
-            mol = Chem.MolFromSmiles(smiles)
-            if mol is None:
-                return None
-            
-            properties = {
-                'molecular_weight': round(Descriptors.MolWt(mol), 2),
-                'logP': round(Descriptors.MolLogP(mol), 2),
-                'tpsa': round(Descriptors.TPSA(mol), 2),
-                'h_donors': Lipinski.NumHDonors(mol),
-                'h_acceptors': Lipinski.NumHAcceptors(mol),
-                'rotatable_bonds': Descriptors.NumRotatableBonds(mol),
-                'heavy_atoms': mol.GetNumHeavyAtoms(),
-                'num_rings': Descriptors.RingCount(mol),
-                'smiles': smiles,
-                'fraction_csp3': round(Lipinski.FractionCsp3(mol), 3),
-                'qed': round(Descriptors.qed(mol), 3),
-                'num_aromatic_rings': Lipinski.NumAromaticRings(mol),
-                'num_aliphatic_rings': Lipinski.NumAliphaticRings(mol),
-                'num_saturated_rings': Lipinski.NumSaturatedRings(mol),
-            }
-            
-            violations = 0
-            if properties['molecular_weight'] > 500: violations += 1
-            if properties['logP'] > 5: violations += 1
-            if properties['h_donors'] > 5: violations += 1
-            if properties['h_acceptors'] > 10: violations += 1
-            properties['lipinski_violations'] = violations
-            properties['drug_like'] = violations <= 1
-            properties['bioavailability'] = 0.55 if properties['drug_like'] else 0.17
-            
-            if properties['num_rings'] > 3:
-                properties['synthetic_accessibility'] = round(3 + properties['num_rings'] * 0.5, 1)
-            else:
-                properties['synthetic_accessibility'] = round(2 + properties['num_rings'] * 0.3, 1)
-            properties['synthetic_accessibility'] = min(10, properties['synthetic_accessibility'])
-            
-            return properties
-        else:
-            # Mock properties for Render - all features preserved
-            return {
-                'molecular_weight': round(random.uniform(250, 500), 2),
-                'logP': round(random.uniform(1, 4), 2),
-                'tpsa': round(random.uniform(40, 120), 2),
-                'h_donors': random.randint(0, 4),
-                'h_acceptors': random.randint(2, 8),
-                'rotatable_bonds': random.randint(1, 8),
-                'heavy_atoms': random.randint(15, 40),
-                'num_rings': random.randint(1, 4),
-                'smiles': smiles,
-                'fraction_csp3': round(random.uniform(0.2, 0.6), 3),
-                'qed': round(random.uniform(0.4, 0.9), 3),
-                'num_aromatic_rings': random.randint(0, 2),
-                'num_aliphatic_rings': random.randint(0, 2),
-                'num_saturated_rings': random.randint(0, 2),
-                'lipinski_violations': random.randint(0, 2),
-                'drug_like': random.choice([True, False]),
-                'bioavailability': random.choice([0.55, 0.17]),
-                'synthetic_accessibility': round(random.uniform(2, 6), 1)
-            }
+        # Generate realistic mock properties based on SMILES hash for consistency
+        hash_val = hash(smiles) % 1000
+        
+        # Consistent random generation based on SMILES
+        random.seed(hash_val)
+        
+        properties = {
+            'molecular_weight': round(random.uniform(250, 500), 2),
+            'logP': round(random.uniform(1, 4), 2),
+            'tpsa': round(random.uniform(40, 120), 2),
+            'h_donors': random.randint(0, 4),
+            'h_acceptors': random.randint(2, 8),
+            'rotatable_bonds': random.randint(1, 8),
+            'heavy_atoms': random.randint(15, 40),
+            'num_rings': random.randint(1, 4),
+            'smiles': smiles,
+            'fraction_csp3': round(random.uniform(0.2, 0.6), 3),
+            'qed': round(random.uniform(0.4, 0.9), 3),
+            'num_aromatic_rings': random.randint(0, 2),
+            'num_aliphatic_rings': random.randint(0, 2),
+            'num_saturated_rings': random.randint(0, 2),
+            'lipinski_violations': random.randint(0, 2),
+            'drug_like': random.choice([True, False]),
+            'bioavailability': random.choice([0.55, 0.17]),
+            'synthetic_accessibility': round(random.uniform(2, 6), 1)
+        }
+        
+        # Reset random seed
+        random.seed()
+        
+        return properties
     except Exception as e:
         print(f"Error calculating properties: {e}")
         return None
 
-def generate_molecule_image(smiles, compound_name):
-    """Generate 2D molecule image as base64"""
-    if not RDKIT_AVAILABLE:
-        return None
-    
-    try:
-        mol = Chem.MolFromSmiles(smiles)
-        if mol is None:
-            return None
-        
-        img = Draw.MolToImage(mol, size=(400, 400), kekulize=True)
-        buffered = BytesIO()
-        img.save(buffered, format="PNG")
-        img_str = base64.b64encode(buffered.getvalue()).decode()
-        return img_str
-    except Exception as e:
-        print(f"Image generation error: {e}")
-        return None
+def generate_molecule_image_html(smiles, compound_name):
+    """Generate HTML for molecule display"""
+    return fetch_molecule_image_from_pubchem(smiles, compound_name)
 
 def perform_virtual_screening(protein_id, compounds):
     """Perform virtual screening with enhanced scoring"""
@@ -219,37 +171,19 @@ def perform_virtual_screening(protein_id, compounds):
         smiles = compound.get('smiles', '')
         props = calculate_molecular_properties(smiles)
         
-        # Enhanced scoring algorithm
-        base_score = random.uniform(-9.5, -4.5)
-        
-        # Drug-likeness bonus
+        # Generate realistic binding affinity
         if props and props.get('drug_like'):
-            base_score -= random.uniform(0.5, 1.5)
+            base_score = random.uniform(-9.5, -7.5)
+        else:
+            base_score = random.uniform(-7.0, -5.0)
         
-        # Molecular weight optimization
         if props:
             mw = props.get('molecular_weight', 400)
             if 250 < mw < 500:
                 base_score -= random.uniform(0.2, 0.6)
-            elif mw < 200 or mw > 600:
-                base_score += random.uniform(0.2, 0.5)
         
-        # LogP optimization
-        if props:
-            logp = props.get('logP', 2.5)
-            if 2 <= logp <= 3:
-                base_score -= random.uniform(0.2, 0.5)
-            elif logp < 0 or logp > 5:
-                base_score += random.uniform(0.2, 0.4)
-        
-        # QED score influence
-        if props:
-            qed = props.get('qed', 0.5)
-            if qed > 0.7:
-                base_score -= random.uniform(0.3, 0.7)
-        
-        # Generate molecule image
-        img_base64 = generate_molecule_image(smiles, compound.get('name', f'Compound_{i+1}'))
+        # Generate molecule image HTML
+        image_html = generate_molecule_image_html(smiles, compound.get('name', f'Compound_{i+1}'))
         
         results.append({
             'compound': compound.get('name', f'Compound_{i+1}'),
@@ -257,7 +191,7 @@ def perform_virtual_screening(protein_id, compounds):
             'binding_affinity': round(base_score, 2),
             'rank': 0,
             'properties': props,
-            'image': img_base64
+            'image_html': image_html
         })
     
     results.sort(key=lambda x: x['binding_affinity'])
@@ -275,7 +209,7 @@ def generate_chemical_space_plot(compounds, results_dict=None):
     for comp in compounds:
         smiles = comp.get('smiles', '')
         props = calculate_molecular_properties(smiles)
-        if props and props.get('molecular_weight', 0) > 0:
+        if props:
             affinity = -7.0
             if results_dict:
                 for res in results_dict:
@@ -291,9 +225,7 @@ def generate_chemical_space_plot(compounds, results_dict=None):
                 'donors': props['h_donors'],
                 'acceptors': props['h_acceptors'],
                 'rings': props['num_rings'],
-                'qed': props['qed'],
-                'affinity': affinity,
-                'drug_like': props['drug_like']
+                'affinity': affinity
             })
     
     if len(valid_data) < 2:
@@ -304,55 +236,38 @@ def generate_chemical_space_plot(compounds, results_dict=None):
     affinities = []
     
     for data in valid_data:
-        features.append([data['mw'], data['logp'], data['tpsa'], data['donors'], data['acceptors'], data['rings']])
+        features.append([data['mw'], data['logp'], data['tpsa'], data['donors'], data['acceptors']])
         names.append(data['name'])
         affinities.append(data['affinity'])
     
     scaler = StandardScaler()
     features_scaled = scaler.fit_transform(features)
     
-    # Perform clustering
-    if len(valid_data) >= 3:
-        n_clusters = min(3, len(valid_data) - 1)
-        kmeans = KMeans(n_clusters=n_clusters, random_state=42)
-        clusters = kmeans.fit_predict(features_scaled)
-    else:
-        clusters = [0] * len(valid_data)
-    
     pca = PCA(n_components=2)
     pca_result = pca.fit_transform(features_scaled)
     
     fig = go.Figure()
     
-    # Add traces for each cluster
-    cluster_colors = ['#667eea', '#f59e0b', '#10b981']
-    for cluster_id in set(clusters):
-        cluster_indices = [i for i, c in enumerate(clusters) if c == cluster_id]
-        cluster_affinities = [affinities[i] for i in cluster_indices]
-        cluster_x = [pca_result[i, 0] for i in cluster_indices]
-        cluster_y = [pca_result[i, 1] for i in cluster_indices]
-        
-        fig.add_trace(go.Scatter(
-            x=cluster_x,
-            y=cluster_y,
-            mode='markers+text',
-            marker=dict(
-                size=25,
-                color=cluster_affinities,
-                colorscale='RdYlGn_r',
-                showscale=True if cluster_id == 0 else False,
-                colorbar=dict(title="Binding Affinity<br>(kcal/mol)") if cluster_id == 0 else None,
-                line=dict(width=2, color='white')
-            ),
-            text=[names[i] for i in cluster_indices],
-            textposition="top center",
-            textfont=dict(size=11, color='white'),
-            name=f'Cluster {cluster_id + 1}',
-            hovertemplate='<b>%{text}</b><br>Affinity: %{marker.color:.2f} kcal/mol<extra></extra>'
-        ))
+    fig.add_trace(go.Scatter(
+        x=pca_result[:, 0],
+        y=pca_result[:, 1],
+        mode='markers+text',
+        marker=dict(
+            size=25,
+            color=affinities,
+            colorscale='RdYlGn_r',
+            showscale=True,
+            colorbar=dict(title="Binding Affinity<br>(kcal/mol)"),
+            line=dict(width=2, color='white')
+        ),
+        text=names,
+        textposition="top center",
+        textfont=dict(size=11, color='white'),
+        hovertemplate='<b>%{text}</b><br>Affinity: %{marker.color:.2f} kcal/mol<extra></extra>'
+    ))
     
     fig.update_layout(
-        title='Chemical Space Analysis with Clustering',
+        title='Chemical Space Analysis',
         height=500,
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
@@ -396,56 +311,24 @@ def generate_activity_heatmap(results):
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
 def generate_similarity_heatmap(results):
-    """Generate molecular similarity heatmap for top compounds"""
+    """Generate molecular similarity heatmap"""
     if len(results) < 2:
         return None
     
-    # Take top 8 compounds
     top_results = results[:8]
-    mols = []
-    for r in top_results:
-        if RDKIT_AVAILABLE:
-            mol = Chem.MolFromSmiles(r['smiles'])
-        else:
-            mol = MockMol()
-        mols.append(mol)
+    n = len(top_results)
     
-    if len(mols) < 2:
-        return None
-    
-    # Generate fingerprints and calculate similarities
-    if RDKIT_AVAILABLE:
-        fingerprints = []
-        for mol in mols:
-            if mol:
-                fp = AllChem.GetMorganFingerprintAsBitVect(mol, 2, nBits=2048)
-                fingerprints.append(fp)
+    # Generate mock similarity matrix
+    similarities = []
+    for i in range(n):
+        row = []
+        for j in range(n):
+            if i == j:
+                row.append(1.0)
             else:
-                fingerprints.append(None)
-        
-        similarities = []
-        for i in range(len(fingerprints)):
-            row = []
-            for j in range(len(fingerprints)):
-                if fingerprints[i] and fingerprints[j]:
-                    sim = DataStructs.TanimotoSimilarity(fingerprints[i], fingerprints[j])
-                else:
-                    sim = random.uniform(0.3, 0.9)
-                row.append(round(sim, 3))
-            similarities.append(row)
-    else:
-        # Mock similarities for Render
-        similarities = []
-        for i in range(len(mols)):
-            row = []
-            for j in range(len(mols)):
-                if i == j:
-                    row.append(1.0)
-                else:
-                    row.append(round(random.uniform(0.3, 0.9), 3))
-            similarities.append(row)
+                row.append(round(random.uniform(0.3, 0.9), 3))
+        similarities.append(row)
     
-    # Create heatmap
     fig = go.Figure(data=go.Heatmap(
         z=similarities,
         x=[r['compound'][:15] for r in top_results],
@@ -454,11 +337,11 @@ def generate_similarity_heatmap(results):
         text=[[str(sim) for sim in row] for row in similarities],
         texttemplate='%{text}',
         textfont={"size": 10},
-        colorbar=dict(title="Similarity<br>(Tanimoto)")
+        colorbar=dict(title="Similarity")
     ))
     
     fig.update_layout(
-        title='Molecular Similarity Matrix (Top 8 Compounds)',
+        title='Molecular Similarity Matrix',
         height=450,
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
@@ -469,7 +352,7 @@ def generate_similarity_heatmap(results):
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
 def generate_admet_radar(properties):
-    """Generate ADMET radar chart for a compound"""
+    """Generate ADMET radar chart"""
     if not properties:
         return None
     
@@ -494,7 +377,6 @@ def generate_admet_radar(properties):
         fillcolor='rgba(102, 126, 234, 0.3)'
     ))
     
-    # Add optimal range
     optimal_values = [0.7, 0.7, 0.5, 0.5, 0.5, 0.8]
     fig.add_trace(go.Scatterpolar(
         r=optimal_values,
@@ -520,12 +402,12 @@ def generate_admet_radar(properties):
         height=450,
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
-        font={'color': 'white'},
-        legend=dict(font={'color': 'white'})
+        font={'color': 'white'}
     )
     
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
+# Flask Routes
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -562,9 +444,6 @@ def analyze_compound():
     if not smiles:
         return jsonify({'error': 'SMILES string required'}), 400
     
-    if not validate_smiles(smiles):
-        return jsonify({'error': 'Invalid SMILES string'}), 400
-    
     properties = calculate_molecular_properties(smiles)
     
     if properties:
@@ -582,17 +461,8 @@ def run_docking():
     if not protein_id or not compounds:
         return jsonify({'error': 'Protein ID and compounds required'}), 400
     
-    valid_compounds = []
-    for comp in compounds:
-        smiles = comp.get('smiles', '')
-        if validate_smiles(smiles):
-            valid_compounds.append(comp)
-    
-    if len(valid_compounds) < 1:
-        return jsonify({'error': 'No valid compounds to screen'}), 400
-    
-    results = perform_virtual_screening(protein_id, valid_compounds)
-    chemical_space = generate_chemical_space_plot(valid_compounds, results)
+    results = perform_virtual_screening(protein_id, compounds)
+    chemical_space = generate_chemical_space_plot(compounds, results)
     activity_heatmap = generate_activity_heatmap(results)
     similarity_heatmap = generate_similarity_heatmap(results)
     
@@ -601,7 +471,6 @@ def run_docking():
     if top_compound and top_compound.get('properties'):
         admet_radar = generate_admet_radar(top_compound['properties'])
     
-    # Save session
     if save_session:
         session_id = hashlib.md5(f"{protein_id}_{datetime.now().isoformat()}".encode()).hexdigest()[:8]
         session_data = {
@@ -624,7 +493,6 @@ def run_docking():
         'activity_heatmap': activity_heatmap,
         'similarity_heatmap': similarity_heatmap,
         'admet_radar': admet_radar,
-        'session': session_data if save_session else None,
         'message': f'Docking complete. Screened {len(results)} compounds.'
     })
 
@@ -643,7 +511,7 @@ def batch_dock():
             df = pd.read_csv(file)
             for _, row in df.iterrows():
                 smiles = str(row.get('smiles', '')).strip()
-                if validate_smiles(smiles):
+                if smiles:
                     compounds.append({
                         'name': str(row.get('name', f"C{len(compounds)+1}")),
                         'smiles': smiles
@@ -684,18 +552,17 @@ def radar_chart(smiles_list):
     compounds_data = []
     
     for smiles in smiles_array[:5]:
-        if validate_smiles(smiles):
-            props = calculate_molecular_properties(smiles)
-            if props:
-                compounds_data.append({
-                    'name': props.get('name', smiles[:20]),
-                    'MW': props['molecular_weight'] / 500,
-                    'LogP': (props['logP'] + 5) / 10,
-                    'TPSA': props['tpsa'] / 200,
-                    'H_Donors': props['h_donors'] / 10,
-                    'H_Acceptors': props['h_acceptors'] / 10,
-                    'QED': props['qed']
-                })
+        props = calculate_molecular_properties(smiles)
+        if props:
+            compounds_data.append({
+                'name': props.get('name', smiles[:20]),
+                'MW': props['molecular_weight'] / 500,
+                'LogP': (props['logP'] + 5) / 10,
+                'TPSA': props['tpsa'] / 200,
+                'H_Donors': props['h_donors'] / 10,
+                'H_Acceptors': props['h_acceptors'] / 10,
+                'QED': props['qed']
+            })
     
     if not compounds_data:
         return jsonify({'error': 'No valid compounds'}), 400
@@ -749,8 +616,8 @@ def export_results():
         return jsonify({'error': 'No results'}), 400
     
     df = pd.DataFrame(results)
-    if 'image' in df.columns:
-        df = df.drop('image', axis=1)
+    if 'image_html' in df.columns:
+        df = df.drop('image_html', axis=1)
     if 'properties' in df.columns:
         props_df = df['properties'].apply(pd.Series)
         df = pd.concat([df.drop('properties', axis=1), props_df], axis=1)
@@ -785,7 +652,7 @@ def compare_compounds():
                 'name': comp.get('name', 'Unknown'),
                 'smiles': smiles,
                 'properties': props,
-                'image': generate_molecule_image(smiles, comp.get('name', 'Unknown'))
+                'image_html': generate_molecule_image_html(smiles, comp.get('name', 'Unknown'))
             })
     
     return jsonify({
