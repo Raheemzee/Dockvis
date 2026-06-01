@@ -1,0 +1,3 @@
+binding_affinity,compound,rank,smiles
+-8.89,Compound_1,1,CC(=O)OC1=CC=CC=C1C(=O)O
+-7.96,Compound_2,2,CC(C)CC1=CC=C(C=C1)C(C)C(=O)O

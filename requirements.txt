@@ -1,0 +1,10 @@
+Flask
+Flask-CORS
+rdkit-pypi
+pandas
+numpy
+scikit-learn
+plotly
+requests
+openpyxl
+gunicorn

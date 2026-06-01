@@ -1,0 +1,1244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DockVis Pro - Advanced Drug Discovery Platform</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        :root {
+            --primary: #667eea;
+            --secondary: #764ba2;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --info: #3b82f6;
+            --dark: #1f2937;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+            color: white;
+        }
+        
+        .navbar {
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+        }
+        
+        .navbar-brand {
+            font-weight: bold;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            font-size: 1.5rem;
+        }
+        
+        .main-container {
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s, box-shadow 0.3s;
+            background: rgba(255,255,255,0.98);
+            margin-bottom: 20px;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+        }
+        
+        .card-header {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            border-radius: 15px 15px 0 0;
+            padding: 15px 20px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .card-header i {
+            margin-right: 8px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border: none;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            background: linear-gradient(135deg, var(--secondary), var(--primary));
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, var(--success), #059669);
+            border: none;
+        }
+        
+        .btn-success:hover {
+            transform: translateY(-2px);
+        }
+        
+        .btn-info {
+            background: linear-gradient(135deg, var(--info), #2563eb);
+            border: none;
+        }
+        
+        .score-badge {
+            font-size: 1rem;
+            font-weight: bold;
+            padding: 5px 12px;
+            border-radius: 20px;
+            display: inline-block;
+        }
+        
+        .score-excellent {
+            background: linear-gradient(135deg, var(--success), #059669);
+            color: white;
+        }
+        
+        .score-good {
+            background: linear-gradient(135deg, #34d399, #10b981);
+            color: white;
+        }
+        
+        .score-moderate {
+            background: linear-gradient(135deg, var(--warning), #d97706);
+            color: white;
+        }
+        
+        .score-poor {
+            background: linear-gradient(135deg, var(--danger), #dc2626);
+            color: white;
+        }
+        
+        .loading {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 9999;
+            text-align: center;
+            background: rgba(0,0,0,0.9);
+            padding: 30px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .result-card {
+            cursor: pointer;
+            transition: all 0.3s;
+            border-left: 4px solid transparent;
+            margin-bottom: 10px;
+            border-radius: 10px;
+        }
+        
+        .result-card:hover {
+            background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
+            transform: translateX(5px);
+        }
+        
+        .result-card.selected {
+            border-left-color: var(--primary);
+            background: linear-gradient(135deg, #eef2ff, #e0e7ff);
+        }
+        
+        .property-pill {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            display: inline-block;
+            margin: 2px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 15px;
+            padding: 15px;
+            text-align: center;
+            color: white;
+            transition: transform 0.3s;
+        }
+        
+        .stat-card:hover {
+            transform: scale(1.05);
+        }
+        
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+        
+        .status-badge {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: none;
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        .chemical-space, .heatmap-container, .similarity-container {
+            min-height: 450px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 10px;
+            padding: 10px;
+        }
+        
+        .drug-like-badge {
+            background: var(--success);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+        }
+        
+        .property-card {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 10px;
+            padding: 10px;
+            margin-bottom: 10px;
+            height: 100%;
+        }
+        
+        .molecule-card {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            height: 100%;
+        }
+        
+        .molecule-image {
+            max-width: 100%;
+            height: auto;
+            border-radius: 10px;
+            background: white;
+            padding: 10px;
+        }
+        
+        .nav-tabs .nav-link {
+            color: #666;
+            border: none;
+        }
+        
+        .nav-tabs .nav-link.active {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            border-radius: 10px;
+        }
+        
+        .compound-count {
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 10px;
+        }
+        
+        .session-item {
+            cursor: pointer;
+            transition: all 0.3s;
+            border-radius: 10px;
+        }
+        
+        .session-item:hover {
+            background: #f3f4f6;
+            transform: translateX(5px);
+        }
+        
+        .comparison-card {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 10px;
+            padding: 15px;
+            height: 100%;
+        }
+        
+        .tab-pane {
+            padding: 15px 0;
+        }
+        
+        @media (max-width: 768px) {
+            .stat-value {
+                font-size: 1.2rem;
+            }
+            .card-header {
+                font-size: 0.9rem;
+            }
+        }
+        
+        .btn-group-toggle .btn {
+            margin: 2px;
+        }
+        
+        .filter-active {
+            background: var(--success) !important;
+            color: white !important;
+        }
+        
+        .export-options {
+            display: none;
+            position: absolute;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            z-index: 100;
+        }
+        
+        .badge-custom {
+            font-size: 0.7rem;
+            padding: 3px 8px;
+            border-radius: 12px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg sticky-top">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-dna"></i> DockVis Pro
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="showCompareModal()">
+                            <i class="fas fa-chart-line"></i> Compare
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="showSessions()">
+                            <i class="fas fa-history"></i> History
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="showExamples()">
+                            <i class="fas fa-flask"></i> Examples
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="exportResults()">
+                            <i class="fas fa-download"></i> Export
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="clearAll()">
+                            <i class="fas fa-trash-alt"></i> Clear
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container main-container">
+        <!-- Stats Dashboard -->
+        <div class="row" id="statsDashboard" style="display: none;">
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalCompounds">0</div>
+                    <div class="stat-label">Compounds Screened</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-value" id="topAffinity">0</div>
+                    <div class="stat-label">Best Affinity (kcal/mol)</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-value" id="drugLikeCount">0</div>
+                    <div class="stat-label">Drug-Like Compounds</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-value" id="avgAffinity">0</div>
+                    <div class="stat-label">Average Affinity</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Input Section -->
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-microscope"></i> Target Protein
+                    </div>
+                    <div class="card-body">
+                        <label class="form-label">PDB ID (e.g., 6LU7, 1AKE)</label>
+                        <div class="input-group mb-3">
+                            <input type="text" class="form-control" id="proteinId" placeholder="Enter 4-character PDB ID">
+                            <button class="btn btn-primary" onclick="fetchProtein()">
+                                <i class="fas fa-download"></i> Fetch
+                            </button>
+                        </div>
+                        <div id="proteinInfo" class="alert alert-info" style="display: none;">
+                            <i class="fas fa-check-circle"></i> <span id="proteinMessage"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-capsules"></i> Compounds
+                    </div>
+                    <div class="card-body">
+                        <ul class="nav nav-tabs" role="tablist">
+                            <li class="nav-item">
+                                <a class="nav-link active" data-bs-toggle="tab" href="#single">Single Compound</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#batch">Batch Upload</a>
+                            </li>
+                        </ul>
+                        
+                        <div class="tab-content mt-3">
+                            <div class="tab-pane active" id="single">
+                                <label class="form-label">SMILES Notation</label>
+                                <textarea class="form-control" id="smilesInput" rows="3" placeholder="Enter SMILES string..."></textarea>
+                                <div class="mt-2">
+                                    <button class="btn btn-outline-primary btn-sm" onclick="analyzeCompound()">
+                                        <i class="fas fa-chart-line"></i> Analyze
+                                    </button>
+                                    <button class="btn btn-primary btn-sm" onclick="addCompoundToList()">
+                                        <i class="fas fa-plus"></i> Add to Screening
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="tab-pane" id="batch">
+                                <label class="form-label">Upload CSV File</label>
+                                <input type="file" class="form-control" id="batchFile" accept=".csv">
+                                <div class="mt-2">
+                                    <small class="text-muted">
+                                        <i class="fas fa-info-circle"></i> CSV must have columns: 'name' and 'smiles'
+                                    </small>
+                                </div>
+                                <div class="mt-2">
+                                    <button class="btn btn-warning btn-sm" onclick="downloadTemplate()">
+                                        <i class="fas fa-download"></i> Download Template
+                                    </button>
+                                </div>
+                                <div class="mt-2 text-success">
+                                    <small><i class="fas fa-check-circle"></i> Compounds added automatically when you select a file</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Compounds List -->
+        <div class="card">
+            <div class="card-header">
+                <i class="fas fa-list"></i> Screening Library
+                <button class="btn btn-sm btn-light float-end" onclick="clearCompounds()">
+                    <i class="fas fa-trash"></i> Clear All
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="compoundsList">
+                    <div class="text-center text-muted">
+                        No compounds added yet. Add compounds manually or upload a CSV file.
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <button class="btn btn-success btn-lg w-100" onclick="runDocking()" id="runDockingBtn" disabled>
+                        <i class="fas fa-play"></i> Run Virtual Screening
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Results Section -->
+        <div id="resultsSection" style="display: none;">
+            <div class="row">
+                <div class="col-md-5">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-chart-bar"></i> Docking Results
+                        </div>
+                        <div class="card-body" style="max-height: 500px; overflow-y: auto;">
+                            <div id="resultsList"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-7">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-draw-polygon"></i> Top Molecule Structure
+                        </div>
+                        <div class="card-body">
+                            <div id="moleculeViewer" style="text-align: center;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-chart-scatter"></i> Chemical Space Analysis with Clustering
+                </div>
+                <div class="card-body">
+                    <div id="chemicalSpace" class="chemical-space"></div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-fire"></i> Activity Heatmap
+                        </div>
+                        <div class="card-body">
+                            <div id="activityHeatmap" class="heatmap-container"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-chart-radar"></i> Property Radar Chart
+                        </div>
+                        <div class="card-body">
+                            <div id="radarChart" class="heatmap-container"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-project-diagram"></i> Molecular Similarity Matrix
+                        </div>
+                        <div class="card-body">
+                            <div id="similarityHeatmap" class="similarity-container"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-chart-line"></i> ADMET Property Assessment
+                        </div>
+                        <div class="card-body">
+                            <div id="admetRadar" class="similarity-container"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Loading Indicator -->
+        <div class="loading" id="loadingIndicator">
+            <div class="spinner-border text-light" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="text-light mt-2">Running molecular docking simulations...</p>
+            <p class="text-light small">Analyzing compounds, calculating properties, and generating visualizations</p>
+        </div>
+        
+        <!-- Status Badge -->
+        <div class="status-badge" id="statusBadge">
+            <div class="alert alert-success">
+                <i class="fas fa-check-circle"></i> <span id="statusMessage"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Compare Modal -->
+    <div class="modal fade" id="compareModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content" style="background: linear-gradient(135deg, #1a1a2e, #16213e); color: white;">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-chart-line"></i> Compare Compounds</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="compareContent">
+                    <div class="text-center">Loading comparison data...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sessions Modal -->
+    <div class="modal fade" id="sessionsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content" style="background: linear-gradient(135deg, #1a1a2e, #16213e); color: white;">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-history"></i> Screening History</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="sessionsContent">
+                    <div class="text-center">Loading sessions...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let compoundsList = [];
+        let currentResults = null;
+        let currentProteinId = null;
+        let compareModal, sessionsModal;
+        
+        // Initialize modals
+        document.addEventListener('DOMContentLoaded', function() {
+            compareModal = new bootstrap.Modal(document.getElementById('compareModal'));
+            sessionsModal = new bootstrap.Modal(document.getElementById('sessionsModal'));
+        });
+        
+        function showStatus(message, isError = false) {
+            const badge = document.getElementById('statusBadge');
+            const messageSpan = document.getElementById('statusMessage');
+            const alertDiv = badge.querySelector('.alert');
+            
+            messageSpan.textContent = message;
+            alertDiv.className = isError ? 'alert alert-danger' : 'alert alert-success';
+            badge.style.display = 'block';
+            
+            setTimeout(() => {
+                badge.style.display = 'none';
+            }, 3000);
+        }
+        
+        async function fetchProtein() {
+            const pdbId = document.getElementById('proteinId').value.trim().toUpperCase();
+            if (!pdbId) {
+                showStatus('Please enter a PDB ID', true);
+                return;
+            }
+            
+            showStatus('Fetching protein structure...');
+            
+            try {
+                const response = await fetch('/api/protein/fetch', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({pdb_id: pdbId})
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentProteinId = pdbId;
+                    const infoDiv = document.getElementById('proteinInfo');
+                    document.getElementById('proteinMessage').innerHTML = 
+                        `✅ ${data.protein_name}<br>Successfully loaded from PDB database`;
+                    infoDiv.style.display = 'block';
+                    showStatus(`Loaded ${data.protein_name}`);
+                } else {
+                    showStatus(data.error, true);
+                }
+            } catch (error) {
+                showStatus('Error fetching protein: ' + error.message, true);
+            }
+        }
+        
+        async function analyzeCompound() {
+            const smiles = document.getElementById('smilesInput').value.trim();
+            if (!smiles) {
+                showStatus('Please enter a SMILES string', true);
+                return;
+            }
+            
+            showStatus('Analyzing compound...');
+            
+            try {
+                const response = await fetch('/api/compound/analyze', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({smiles: smiles})
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const props = data.properties;
+                    let drugLikeStatus = props.drug_like ? '✅ Yes' : '❌ No';
+                    
+                    alert(`📊 MOLECULAR PROPERTIES\n\n` +
+                          `🧬 Molecular Weight: ${props.molecular_weight} Da\n` +
+                          `💧 LogP: ${props.logP}\n` +
+                          `🔬 TPSA: ${props.tpsa} Å²\n` +
+                          `🔗 H-Bond Donors: ${props.h_donors}\n` +
+                          `🔗 H-Bond Acceptors: ${props.h_acceptors}\n` +
+                          `🔄 Rotatable Bonds: ${props.rotatable_bonds}\n` +
+                          `💍 Rings: ${props.num_rings} (Aromatic: ${props.num_aromatic_rings}, Aliphatic: ${props.num_aliphatic_rings})\n` +
+                          `⭐ QED Drug-likeness: ${props.qed}\n` +
+                          `💊 Drug-like: ${drugLikeStatus}\n` +
+                          `⚠️ Lipinski Violations: ${props.lipinski_violations}\n` +
+                          `🎯 Bioavailability Score: ${props.bioavailability}\n` +
+                          `🔧 Synthetic Accessibility: ${props.synthetic_accessibility}/10`);
+                    showStatus('Analysis complete');
+                } else {
+                    showStatus(data.error, true);
+                }
+            } catch (error) {
+                showStatus('Error: ' + error.message, true);
+            }
+        }
+        
+        function addCompoundToList() {
+            const smiles = document.getElementById('smilesInput').value.trim();
+            if (!smiles) {
+                showStatus('Please enter a SMILES string', true);
+                return;
+            }
+            
+            const name = `Compound_${compoundsList.length + 1}`;
+            compoundsList.push({name: name, smiles: smiles});
+            updateCompoundsList();
+            document.getElementById('smilesInput').value = '';
+            showStatus(`Added ${name}`);
+        }
+        
+        function updateCompoundsList() {
+            const container = document.getElementById('compoundsList');
+            const runBtn = document.getElementById('runDockingBtn');
+            
+            if (compoundsList.length === 0) {
+                container.innerHTML = '<div class="text-center text-muted">No compounds added yet. Add compounds manually or upload a CSV file.</div>';
+                runBtn.disabled = true;
+                return;
+            }
+            
+            runBtn.disabled = false;
+            
+            let html = '<div class="row">';
+            compoundsList.forEach((comp, index) => {
+                html += `
+                    <div class="col-md-3 mb-3">
+                        <div class="property-card">
+                            <strong>🧪 ${comp.name}</strong>
+                            <br>
+                            <small class="text-muted">${comp.smiles.substring(0, 35)}${comp.smiles.length > 35 ? '...' : ''}</small>
+                            <br>
+                            <button class="btn btn-danger btn-sm mt-2" onclick="removeCompound(${index})">
+                                <i class="fas fa-trash"></i> Remove
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            html += `<div class="compound-count">📊 Total: ${compoundsList.length} compound(s) ready for screening</div>`;
+            
+            container.innerHTML = html;
+        }
+        
+        function removeCompound(index) {
+            compoundsList.splice(index, 1);
+            updateCompoundsList();
+            showStatus('Compound removed');
+        }
+        
+        function clearCompounds() {
+            if (confirm('Clear all compounds from screening library?')) {
+                compoundsList = [];
+                updateCompoundsList();
+                document.getElementById('resultsSection').style.display = 'none';
+                document.getElementById('statsDashboard').style.display = 'none';
+                showStatus('All compounds cleared');
+            }
+        }
+        
+        function clearAll() {
+            if (confirm('Clear all data? This will remove protein and all compounds.')) {
+                compoundsList = [];
+                updateCompoundsList();
+                document.getElementById('resultsSection').style.display = 'none';
+                document.getElementById('statsDashboard').style.display = 'none';
+                document.getElementById('proteinId').value = '';
+                document.getElementById('proteinInfo').style.display = 'none';
+                document.getElementById('batchFile').value = '';
+                currentProteinId = null;
+                currentResults = null;
+                showStatus('All data cleared');
+            }
+        }
+        
+        // Handle batch file upload
+        document.getElementById('batchFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            showStatus(`Processing ${file.name}...`);
+            
+            const reader = new FileReader();
+            
+            reader.onload = function(evt) {
+                const content = evt.target.result;
+                const lines = content.split('\n');
+                
+                if (lines.length < 2) {
+                    showStatus('CSV file is empty', true);
+                    return;
+                }
+                
+                const headers = lines[0].toLowerCase().split(',');
+                let nameIndex = -1;
+                let smilesIndex = -1;
+                
+                headers.forEach((header, idx) => {
+                    if (header.trim() === 'name') nameIndex = idx;
+                    if (header.trim() === 'smiles') smilesIndex = idx;
+                });
+                
+                if (smilesIndex === -1) {
+                    showStatus('CSV must have a "smiles" column', true);
+                    return;
+                }
+                
+                let addedCount = 0;
+                
+                for (let i = 1; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (line === '') continue;
+                    
+                    const values = line.split(',');
+                    if (values.length > smilesIndex) {
+                        const smiles = values[smilesIndex].trim();
+                        if (smiles && smiles.length > 0) {
+                            let name = `Compound_${compoundsList.length + addedCount + 1}`;
+                            if (nameIndex !== -1 && values.length > nameIndex) {
+                                name = values[nameIndex].trim();
+                                if (name === '') name = `Compound_${compoundsList.length + addedCount + 1}`;
+                            }
+                            compoundsList.push({name: name, smiles: smiles});
+                            addedCount++;
+                        }
+                    }
+                }
+                
+                if (addedCount > 0) {
+                    updateCompoundsList();
+                    showStatus(`✅ Successfully added ${addedCount} compounds from CSV!`);
+                    document.getElementById('batchFile').value = '';
+                } else {
+                    showStatus('No valid compounds found in CSV file.', true);
+                }
+            };
+            
+            reader.onerror = function() {
+                showStatus('Error reading file', true);
+            };
+            
+            reader.readAsText(file);
+        });
+        
+        async function runDocking() {
+            const proteinId = currentProteinId || document.getElementById('proteinId').value.trim().toUpperCase();
+            
+            if (!proteinId) {
+                showStatus('Please fetch a protein first', true);
+                return;
+            }
+            
+            if (compoundsList.length === 0) {
+                showStatus('Please add compounds to screen (manually or via CSV upload)', true);
+                return;
+            }
+            
+            document.getElementById('loadingIndicator').style.display = 'flex';
+            
+            try {
+                const response = await fetch('/api/docking/run', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        protein_id: proteinId,
+                        compounds: compoundsList,
+                        save_session: true
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentResults = data.results;
+                    displayResults(data);
+                    document.getElementById('resultsSection').style.display = 'block';
+                    document.getElementById('statsDashboard').style.display = 'flex';
+                    updateStats(data.results);
+                    showStatus(data.message);
+                } else {
+                    showStatus(data.error, true);
+                }
+            } catch (error) {
+                showStatus('Error running docking: ' + error.message, true);
+            } finally {
+                document.getElementById('loadingIndicator').style.display = 'none';
+            }
+        }
+        
+        function updateStats(results) {
+            document.getElementById('totalCompounds').textContent = results.length;
+            document.getElementById('topAffinity').textContent = results[0]?.binding_affinity || 0;
+            const drugLikeCount = results.filter(r => r.properties?.drug_like).length;
+            document.getElementById('drugLikeCount').textContent = drugLikeCount;
+            const avgAffinity = (results.reduce((sum, r) => sum + r.binding_affinity, 0) / results.length).toFixed(2);
+            document.getElementById('avgAffinity').textContent = avgAffinity;
+        }
+        
+        function displayResults(data) {
+            const resultsList = document.getElementById('resultsList');
+            const chemicalSpace = document.getElementById('chemicalSpace');
+            const activityHeatmap = document.getElementById('activityHeatmap');
+            const similarityHeatmap = document.getElementById('similarityHeatmap');
+            const admetRadar = document.getElementById('admetRadar');
+            const moleculeViewer = document.getElementById('moleculeViewer');
+            
+            // Display results list
+            let resultsHtml = '<div class="list-group">';
+            data.results.forEach((result, index) => {
+                let scoreClass = 'score-moderate';
+                if (result.binding_affinity < -8) {
+                    scoreClass = 'score-excellent';
+                } else if (result.binding_affinity < -6) {
+                    scoreClass = 'score-good';
+                } else if (result.binding_affinity > -4) {
+                    scoreClass = 'score-poor';
+                }
+                
+                const drugLikeBadge = result.properties?.drug_like ? 
+                    '<span class="drug-like-badge ms-2">💊 Drug-like</span>' : '';
+                
+                resultsHtml += `
+                    <div class="list-group-item result-card" onclick="selectCompound(${index})">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>#${result.rank}</strong> ${result.compound}
+                                ${drugLikeBadge}
+                                <br>
+                                <small class="text-muted">${result.smiles.substring(0, 50)}...</small>
+                                ${result.properties ? `<br><small>MW: ${result.properties.molecular_weight} | LogP: ${result.properties.logP} | QED: ${result.properties.qed}</small>` : ''}
+                            </div>
+                            <div>
+                                <span class="score-badge ${scoreClass}">
+                                    ${result.binding_affinity} kcal/mol
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            resultsHtml += '</div>';
+            resultsList.innerHTML = resultsHtml;
+            
+            // Display top molecule image
+            if (data.results.length > 0 && data.results[0].image) {
+                moleculeViewer.innerHTML = `
+                    <div class="molecule-card">
+                        <h5>🏆 Top Ranked: ${data.results[0].compound}</h5>
+                        <p class="text-muted">Binding Affinity: <strong>${data.results[0].binding_affinity} kcal/mol</strong></p>
+                        <img src="data:image/png;base64,${data.results[0].image}" class="molecule-image" alt="Molecule Structure">
+                        <div class="mt-3">
+                            <span class="property-pill">🔬 SMILES: ${data.results[0].smiles.substring(0, 60)}...</span>
+                        </div>
+                        ${data.results[0].properties ? `
+                        <div class="mt-2">
+                            <small>MW: ${data.results[0].properties.molecular_weight} Da | 
+                            LogP: ${data.results[0].properties.logP} | 
+                            QED: ${data.results[0].properties.qed} |
+                            Bioavailability: ${data.results[0].properties.bioavailability}</small>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            } else {
+                moleculeViewer.innerHTML = '<div class="text-center p-5">No molecule image available</div>';
+            }
+            
+            // Display chemical space plot
+            if (data.chemical_space) {
+                try {
+                    const plotData = JSON.parse(data.chemical_space);
+                    Plotly.newPlot(chemicalSpace, plotData.data, plotData.layout, {responsive: true});
+                } catch(e) {
+                    chemicalSpace.innerHTML = '<div class="text-center">⚠️ Add at least 2 compounds for chemical space analysis</div>';
+                }
+            } else {
+                chemicalSpace.innerHTML = '<div class="text-center">⚠️ Add at least 2 compounds to see chemical space analysis</div>';
+            }
+            
+            // Display activity heatmap
+            if (data.activity_heatmap) {
+                try {
+                    const heatmapData = JSON.parse(data.activity_heatmap);
+                    Plotly.newPlot(activityHeatmap, heatmapData.data, heatmapData.layout, {responsive: true});
+                } catch(e) {
+                    console.error('Heatmap error:', e);
+                }
+            }
+            
+            // Display similarity heatmap
+            if (data.similarity_heatmap) {
+                try {
+                    const simData = JSON.parse(data.similarity_heatmap);
+                    Plotly.newPlot(similarityHeatmap, simData.data, simData.layout, {responsive: true});
+                } catch(e) {
+                    console.error('Similarity heatmap error:', e);
+                }
+            }
+            
+            // Display ADMET radar
+            if (data.admet_radar) {
+                try {
+                    const admetData = JSON.parse(data.admet_radar);
+                    Plotly.newPlot(admetRadar, admetData.data, admetData.layout, {responsive: true});
+                } catch(e) {
+                    console.error('ADMET radar error:', e);
+                }
+            }
+            
+            // Load radar chart
+            loadRadarChart(data.results.slice(0, 3));
+        }
+        
+        async function loadRadarChart(topResults) {
+            if (!topResults || topResults.length === 0) return;
+            
+            const smilesList = topResults.map(r => r.smiles).join(',');
+            
+            try {
+                const response = await fetch(`/api/properties/radar/${encodeURIComponent(smilesList)}`);
+                const plotData = JSON.parse(await response.text());
+                Plotly.newPlot('radarChart', plotData.data, plotData.layout, {responsive: true});
+            } catch (error) {
+                console.error('Radar chart error:', error);
+                document.getElementById('radarChart').innerHTML = '<div class="text-center">Radar chart unavailable</div>';
+            }
+        }
+        
+        function selectCompound(index) {
+            if (!currentResults) return;
+            
+            const selectedCompound = currentResults[index];
+            
+            // Highlight selected card
+            document.querySelectorAll('.result-card').forEach((card, i) => {
+                if (i === index) card.classList.add('selected');
+                else card.classList.remove('selected');
+            });
+            
+            // Update molecule viewer with selected compound
+            const moleculeViewer = document.getElementById('moleculeViewer');
+            if (selectedCompound.image) {
+                moleculeViewer.innerHTML = `
+                    <div class="molecule-card">
+                        <h5>🔬 Selected: ${selectedCompound.compound}</h5>
+                        <p class="text-muted">Binding Affinity: <strong>${selectedCompound.binding_affinity} kcal/mol</strong></p>
+                        <img src="data:image/png;base64,${selectedCompound.image}" class="molecule-image" alt="Molecule Structure">
+                        <div class="mt-3">
+                            <span class="property-pill">🔬 SMILES: ${selectedCompound.smiles.substring(0, 60)}...</span>
+                        </div>
+                        ${selectedCompound.properties ? `
+                        <div class="mt-2">
+                            <small>MW: ${selectedCompound.properties.molecular_weight} Da | 
+                            LogP: ${selectedCompound.properties.logP} | 
+                            QED: ${selectedCompound.properties.qed} |
+                            Bioavailability: ${selectedCompound.properties.bioavailability}</small>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
+            
+            showStatus(`Selected: ${selectedCompound.compound} (Score: ${selectedCompound.binding_affinity} kcal/mol)`);
+        }
+        
+        async function exportResults() {
+            if (!currentResults) {
+                showStatus('No results to export', true);
+                return;
+            }
+            
+            const format = confirm('Export as Excel? Click OK for Excel, Cancel for CSV') ? 'excel' : 'csv';
+            
+            try {
+                const response = await fetch('/api/export/results', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({results: currentResults, format: format})
+                });
+                
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                const extension = format === 'excel' ? 'xlsx' : 'csv';
+                a.download = `dockvis_results_${new Date().toISOString().slice(0,19)}.${extension}`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                showStatus(`Results exported as ${format.toUpperCase()}`);
+            } catch (error) {
+                showStatus('Export error: ' + error.message, true);
+            }
+        }
+        
+        async function showCompareModal() {
+            if (!currentResults || currentResults.length < 2) {
+                showStatus('Need at least 2 compounds to compare', true);
+                return;
+            }
+            
+            const top4 = currentResults.slice(0, 4);
+            const compareContent = document.getElementById('compareContent');
+            compareContent.innerHTML = '<div class="text-center">Loading comparison data...</div>';
+            
+            compareModal.show();
+            
+            try {
+                const response = await fetch('/api/compare', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({compounds: top4})
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    let html = '<div class="row">';
+                    data.compounds.forEach((comp, idx) => {
+                        html += `
+                            <div class="col-md-3 mb-3">
+                                <div class="comparison-card">
+                                    <h6 class="text-center">${comp.name}</h6>
+                                    <div class="text-center">
+                                        ${comp.image ? `<img src="data:image/png;base64,${comp.image}" style="max-width: 100%; height: auto; border-radius: 8px; margin-bottom: 10px;">` : ''}
+                                    </div>
+                                    <table class="table table-sm table-borderless">
+                                        <tr><td><small>Affinity:</small></td><td><strong>${top4[idx].binding_affinity} kcal/mol</strong></td></tr>
+                                        <tr><td><small>MW:</small></td><td>${comp.properties.molecular_weight} Da</td></tr>
+                                        <tr><td><small>LogP:</small></td><td>${comp.properties.logP}</td></tr>
+                                        <tr><td><small>QED:</small></td><td>${comp.properties.qed}</td></tr>
+                                        <tr><td><small>Drug-like:</small></td><td>${comp.properties.drug_like ? '✅ Yes' : '❌ No'}</td></tr>
+                                    </table>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                    compareContent.innerHTML = html;
+                } else {
+                    compareContent.innerHTML = `<div class="text-center text-danger">${data.error}</div>`;
+                }
+            } catch (error) {
+                compareContent.innerHTML = `<div class="text-center text-danger">Error: ${error.message}</div>`;
+            }
+        }
+        
+        async function showSessions() {
+            const sessionsContent = document.getElementById('sessionsContent');
+            sessionsContent.innerHTML = '<div class="text-center">Loading sessions...</div>';
+            
+            sessionsModal.show();
+            
+            try {
+                const response = await fetch('/api/sessions');
+                const data = await response.json();
+                
+                if (data.sessions && data.sessions.length > 0) {
+                    let html = '<div class="list-group">';
+                    data.sessions.forEach(session => {
+                        const date = new Date(session.timestamp).toLocaleString();
+                        html += `
+                            <div class="list-group-item list-group-item-action session-item" style="background: rgba(255,255,255,0.1); color: white; margin-bottom: 10px;">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <strong>🔬 ${session.protein_id}</strong>
+                                        <br>
+                                        <small>${date}</small>
+                                    </div>
+                                    <div class="text-end">
+                                        <div>📊 ${session.num_compounds} compounds</div>
+                                        <div>🏆 Best: ${session.top_affinity} kcal/mol</div>
+                                        <div>📈 Avg: ${session.avg_affinity.toFixed(2)} kcal/mol</div>
+                                        <div>💊 ${session.drug_like_count} drug-like</div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                    sessionsContent.innerHTML = html;
+                } else {
+                    sessionsContent.innerHTML = '<div class="text-center">No screening sessions yet. Run a screening to save history.</div>';
+                }
+            } catch (error) {
+                sessionsContent.innerHTML = `<div class="text-center text-danger">Error: ${error.message}</div>`;
+            }
+        }
+        
+        async function showExamples() {
+            try {
+                const response = await fetch('/api/examples');
+                const examples = await response.json();
+                let message = '🔬 Example Compounds for Drug Discovery:\n\n';
+                examples.forEach((ex, i) => {
+                    message += `${i+1}. ${ex.name}\n   SMILES: ${ex.smiles}\n\n`;
+                });
+                alert(message);
+            } catch (error) {
+                showStatus('Error loading examples', true);
+            }
+        }
+        
+        function downloadTemplate() {
+            const template = 'name,smiles\nAspirin,CC(=O)OC1=CC=CC=C1C(=O)O\nIbuprofen,CC(C)CC1=CC=C(C=C1)C(C)C(=O)O\nCaffeine,CN1C=NC2=C1C(=O)N(C(=O)N2C)C\nParacetamol,CC(=O)NC1=CC=C(C=C1)O\nNaproxen,CC(OC1=CC=C(C=C1)C(C)C(O)=O)=O';
+            const blob = new Blob([template], {type: 'text/csv'});
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'compound_template.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            showStatus('Template downloaded - edit and re-upload to add compounds');
+        }
+    </script>
+</body>
+</html>
