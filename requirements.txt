@@ -1,6 +1,5 @@
 Flask
 Flask-CORS
-rdkit
 pandas
 numpy
 scikit-learn
