@@ -15,7 +15,6 @@
             --danger: #ef4444;
             --warning: #f59e0b;
             --info: #3b82f6;
-            --dark: #1f2937;
         }
         
         body {
@@ -65,11 +64,6 @@
             border-radius: 15px 15px 0 0;
             padding: 15px 20px;
             font-weight: bold;
-            cursor: pointer;
-        }
-        
-        .card-header i {
-            margin-right: 8px;
         }
         
         .btn-primary {
@@ -98,9 +92,9 @@
         }
         
         .score-badge {
-            font-size: 1rem;
+            font-size: 0.9rem;
             font-weight: bold;
-            padding: 5px 12px;
+            padding: 4px 10px;
             border-radius: 20px;
             display: inline-block;
         }
@@ -162,7 +156,7 @@
             color: white;
             padding: 3px 10px;
             border-radius: 20px;
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             display: inline-block;
             margin: 2px;
         }
@@ -181,7 +175,7 @@
         }
         
         .stat-value {
-            font-size: 2rem;
+            font-size: 1.8rem;
             font-weight: bold;
         }
         
@@ -217,7 +211,7 @@
             color: white;
             padding: 2px 8px;
             border-radius: 12px;
-            font-size: 0.7rem;
+            font-size: 0.65rem;
         }
         
         .property-card {
@@ -226,22 +220,6 @@
             padding: 10px;
             margin-bottom: 10px;
             height: 100%;
-        }
-        
-        .molecule-card {
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            border-radius: 15px;
-            padding: 20px;
-            text-align: center;
-            height: 100%;
-        }
-        
-        .molecule-image {
-            max-width: 100%;
-            height: auto;
-            border-radius: 10px;
-            background: white;
-            padding: 10px;
         }
         
         .nav-tabs .nav-link {
@@ -256,7 +234,7 @@
         }
         
         .compound-count {
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             color: #666;
             margin-top: 10px;
         }
@@ -292,28 +270,31 @@
             }
         }
         
-        .btn-group-toggle .btn {
-            margin: 2px;
-        }
-        
-        .filter-active {
-            background: var(--success) !important;
-            color: white !important;
-        }
-        
-        .export-options {
-            display: none;
-            position: absolute;
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-            z-index: 100;
-        }
-        
         .badge-custom {
             font-size: 0.7rem;
             padding: 3px 8px;
             border-radius: 12px;
+        }
+        
+        .molecule-viewer-container {
+            min-height: 400px;
+        }
+        
+        .affinity-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        
+        .modal-content {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: white;
+        }
+        
+        .btn-close-white {
+            filter: invert(1);
         }
     </style>
 </head>
@@ -500,10 +481,10 @@
                 <div class="col-md-7">
                     <div class="card">
                         <div class="card-header">
-                            <i class="fas fa-draw-polygon"></i> Top Molecule Structure
+                            <i class="fas fa-draw-polygon"></i> Molecule Structure
                         </div>
                         <div class="card-body">
-                            <div id="moleculeViewer" style="text-align: center;"></div>
+                            <div id="moleculeViewer" class="molecule-viewer-container"></div>
                         </div>
                     </div>
                 </div>
@@ -511,7 +492,7 @@
             
             <div class="card">
                 <div class="card-header">
-                    <i class="fas fa-chart-scatter"></i> Chemical Space Analysis with Clustering
+                    <i class="fas fa-chart-scatter"></i> Chemical Space Analysis
                 </div>
                 <div class="card-body">
                     <div id="chemicalSpace" class="chemical-space"></div>
@@ -587,7 +568,7 @@
     <!-- Compare Modal -->
     <div class="modal fade" id="compareModal" tabindex="-1">
         <div class="modal-dialog modal-xl">
-            <div class="modal-content" style="background: linear-gradient(135deg, #1a1a2e, #16213e); color: white;">
+            <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title"><i class="fas fa-chart-line"></i> Compare Compounds</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -602,7 +583,7 @@
     <!-- Sessions Modal -->
     <div class="modal fade" id="sessionsModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
-            <div class="modal-content" style="background: linear-gradient(135deg, #1a1a2e, #16213e); color: white;">
+            <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title"><i class="fas fa-history"></i> Screening History</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -663,9 +644,9 @@
                     currentProteinId = pdbId;
                     const infoDiv = document.getElementById('proteinInfo');
                     document.getElementById('proteinMessage').innerHTML = 
-                        `✅ ${data.protein_name}<br>Successfully loaded from PDB database`;
+                        `✅ Protein ${pdbId} loaded successfully!`;
                     infoDiv.style.display = 'block';
-                    showStatus(`Loaded ${data.protein_name}`);
+                    showStatus(`Loaded protein ${pdbId}`);
                 } else {
                     showStatus(data.error, true);
                 }
@@ -703,7 +684,7 @@
                           `🔗 H-Bond Donors: ${props.h_donors}\n` +
                           `🔗 H-Bond Acceptors: ${props.h_acceptors}\n` +
                           `🔄 Rotatable Bonds: ${props.rotatable_bonds}\n` +
-                          `💍 Rings: ${props.num_rings} (Aromatic: ${props.num_aromatic_rings}, Aliphatic: ${props.num_aliphatic_rings})\n` +
+                          `💍 Rings: ${props.num_rings}\n` +
                           `⭐ QED Drug-likeness: ${props.qed}\n` +
                           `💊 Drug-like: ${drugLikeStatus}\n` +
                           `⚠️ Lipinski Violations: ${props.lipinski_violations}\n` +
@@ -749,9 +730,9 @@
                 html += `
                     <div class="col-md-3 mb-3">
                         <div class="property-card">
-                            <strong>🧪 ${comp.name}</strong>
+                            <strong>🧪 ${escapeHtml(comp.name)}</strong>
                             <br>
-                            <small class="text-muted">${comp.smiles.substring(0, 35)}${comp.smiles.length > 35 ? '...' : ''}</small>
+                            <small class="text-muted">${escapeHtml(comp.smiles.substring(0, 35))}${comp.smiles.length > 35 ? '...' : ''}</small>
                             <br>
                             <button class="btn btn-danger btn-sm mt-2" onclick="removeCompound(${index})">
                                 <i class="fas fa-trash"></i> Remove
@@ -764,6 +745,12 @@
             html += `<div class="compound-count">📊 Total: ${compoundsList.length} compound(s) ready for screening</div>`;
             
             container.innerHTML = html;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
         
         function removeCompound(index) {
@@ -947,10 +934,10 @@
                     <div class="list-group-item result-card" onclick="selectCompound(${index})">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
-                                <strong>#${result.rank}</strong> ${result.compound}
+                                <strong>#${result.rank}</strong> ${escapeHtml(result.compound)}
                                 ${drugLikeBadge}
                                 <br>
-                                <small class="text-muted">${result.smiles.substring(0, 50)}...</small>
+                                <small class="text-muted">${escapeHtml(result.smiles.substring(0, 50))}...</small>
                                 ${result.properties ? `<br><small>MW: ${result.properties.molecular_weight} | LogP: ${result.properties.logP} | QED: ${result.properties.qed}</small>` : ''}
                             </div>
                             <div>
@@ -965,26 +952,9 @@
             resultsHtml += '</div>';
             resultsList.innerHTML = resultsHtml;
             
-            // Display top molecule image
-            if (data.results.length > 0 && data.results[0].image) {
-                moleculeViewer.innerHTML = `
-                    <div class="molecule-card">
-                        <h5>🏆 Top Ranked: ${data.results[0].compound}</h5>
-                        <p class="text-muted">Binding Affinity: <strong>${data.results[0].binding_affinity} kcal/mol</strong></p>
-                        <img src="data:image/png;base64,${data.results[0].image}" class="molecule-image" alt="Molecule Structure">
-                        <div class="mt-3">
-                            <span class="property-pill">🔬 SMILES: ${data.results[0].smiles.substring(0, 60)}...</span>
-                        </div>
-                        ${data.results[0].properties ? `
-                        <div class="mt-2">
-                            <small>MW: ${data.results[0].properties.molecular_weight} Da | 
-                            LogP: ${data.results[0].properties.logP} | 
-                            QED: ${data.results[0].properties.qed} |
-                            Bioavailability: ${data.results[0].properties.bioavailability}</small>
-                        </div>
-                        ` : ''}
-                    </div>
-                `;
+            // Display molecule viewer for top compound
+            if (data.results.length > 0 && data.results[0].image_html) {
+                moleculeViewer.innerHTML = data.results[0].image_html;
             } else {
                 moleculeViewer.innerHTML = '<div class="text-center p-5">No molecule image available</div>';
             }
@@ -1063,25 +1033,10 @@
             
             // Update molecule viewer with selected compound
             const moleculeViewer = document.getElementById('moleculeViewer');
-            if (selectedCompound.image) {
-                moleculeViewer.innerHTML = `
-                    <div class="molecule-card">
-                        <h5>🔬 Selected: ${selectedCompound.compound}</h5>
-                        <p class="text-muted">Binding Affinity: <strong>${selectedCompound.binding_affinity} kcal/mol</strong></p>
-                        <img src="data:image/png;base64,${selectedCompound.image}" class="molecule-image" alt="Molecule Structure">
-                        <div class="mt-3">
-                            <span class="property-pill">🔬 SMILES: ${selectedCompound.smiles.substring(0, 60)}...</span>
-                        </div>
-                        ${selectedCompound.properties ? `
-                        <div class="mt-2">
-                            <small>MW: ${selectedCompound.properties.molecular_weight} Da | 
-                            LogP: ${selectedCompound.properties.logP} | 
-                            QED: ${selectedCompound.properties.qed} |
-                            Bioavailability: ${selectedCompound.properties.bioavailability}</small>
-                        </div>
-                        ` : ''}
-                    </div>
-                `;
+            if (selectedCompound.image_html) {
+                moleculeViewer.innerHTML = selectedCompound.image_html;
+            } else {
+                moleculeViewer.innerHTML = '<div class="text-center p-5">No molecule image available</div>';
             }
             
             showStatus(`Selected: ${selectedCompound.compound} (Score: ${selectedCompound.binding_affinity} kcal/mol)`);
@@ -1145,11 +1100,11 @@
                         html += `
                             <div class="col-md-3 mb-3">
                                 <div class="comparison-card">
-                                    <h6 class="text-center">${comp.name}</h6>
+                                    <h6 class="text-center">${escapeHtml(comp.name)}</h6>
                                     <div class="text-center">
-                                        ${comp.image ? `<img src="data:image/png;base64,${comp.image}" style="max-width: 100%; height: auto; border-radius: 8px; margin-bottom: 10px;">` : ''}
+                                        ${comp.image_html || '<div class="text-muted">No image</div>'}
                                     </div>
-                                    <table class="table table-sm table-borderless">
+                                    <table class="table table-sm table-borderless mt-2">
                                         <tr><td><small>Affinity:</small></td><td><strong>${top4[idx].binding_affinity} kcal/mol</strong></td></tr>
                                         <tr><td><small>MW:</small></td><td>${comp.properties.molecular_weight} Da</td></tr>
                                         <tr><td><small>LogP:</small></td><td>${comp.properties.logP}</td></tr>
