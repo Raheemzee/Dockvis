@@ -8,7 +8,6 @@ import pandas as pd
 import numpy as np
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
-from sklearn.cluster import KMeans
 import plotly
 import plotly.graph_objs as go
 import random
@@ -16,6 +15,7 @@ import base64
 from io import BytesIO
 import requests
 import urllib.parse
+import traceback
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -38,7 +38,7 @@ os.makedirs('static/temp', exist_ok=True)
 screening_history = []
 
 def fetch_molecule_image_from_pubchem(smiles, compound_name):
-    """Fetch molecule image from PubChem API (no RDKit needed)"""
+    """Fetch molecule image from PubChem API"""
     try:
         encoded_smiles = urllib.parse.quote(smiles)
         url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/smiles/{encoded_smiles}/PNG"
@@ -50,45 +50,11 @@ def fetch_molecule_image_from_pubchem(smiles, compound_name):
     except:
         pass
     
-    # Fallback to NCI resolver
-    try:
-        url = f"https://cactus.nci.nih.gov/chemical/structure/{encoded_smiles}/image"
-        response = requests.get(url, timeout=5)
-        if response.status_code == 200:
-            img_base64 = base64.b64encode(response.content).decode()
-            return f'<img src="data:image/png;base64,{img_base64}" style="max-width: 100%; height: auto; border-radius: 10px; background: white; padding: 10px;" alt="{compound_name}">'
-    except:
-        pass
-    
-    # Final fallback - HTML/CSS representation
-    mol_id = hashlib.md5(smiles.encode()).hexdigest()[:8]
-    
+    # Fallback representation
     return f'''
     <div style="background: linear-gradient(135deg, #1a1a2e, #16213e); border-radius: 15px; padding: 20px; text-align: center;">
         <div style="background: white; border-radius: 10px; padding: 20px; margin-bottom: 15px;">
-            <svg width="300" height="200" viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                    <linearGradient id="grad{mol_id}" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
-                        <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
-                    </linearGradient>
-                </defs>
-                <polygon points="150,40 185,70 185,110 150,140 115,110 115,70" fill="none" stroke="url(#grad{mol_id})" stroke-width="3"/>
-                <line x1="185" y1="70" x2="220" y2="90" stroke="#e74c3c" stroke-width="3"/>
-                <line x1="185" y1="75" x2="220" y2="95" stroke="#e74c3c" stroke-width="2"/>
-                <circle cx="220" cy="90" r="15" fill="#e74c3c"/>
-                <text x="220" y="95" text-anchor="middle" fill="white" font-size="12" font-weight="bold">O</text>
-                <circle cx="115" cy="70" r="15" fill="#10b981"/>
-                <text x="115" y="75" text-anchor="middle" fill="white" font-size="12" font-weight="bold">C</text>
-                <circle cx="115" cy="110" r="15" fill="#10b981"/>
-                <text x="115" y="115" text-anchor="middle" fill="white" font-size="12" font-weight="bold">C</text>
-                <circle cx="150" cy="140" r="15" fill="#10b981"/>
-                <text x="150" y="145" text-anchor="middle" fill="white" font-size="12" font-weight="bold">C</text>
-                <circle cx="150" cy="40" r="15" fill="#10b981"/>
-                <text x="150" y="45" text-anchor="middle" fill="white" font-size="12" font-weight="bold">C</text>
-                <circle cx="185" cy="110" r="15" fill="#10b981"/>
-                <text x="185" y="115" text-anchor="middle" fill="white" font-size="12" font-weight="bold">C</text>
-            </svg>
+            <i class="fas fa-draw-polygon" style="font-size: 80px; color: #667eea;"></i>
             <div class="mt-2">
                 <code class="text-muted" style="font-size: 11px; word-break: break-all;">{smiles[:80]}...</code>
             </div>
@@ -104,14 +70,13 @@ def validate_smiles(smiles):
     if not smiles or not isinstance(smiles, str):
         return False
     smiles = smiles.strip()
-    if len(smiles) < 1:
-        return False
-    return True
+    return len(smiles) > 1
 
 def calculate_molecular_properties(smiles):
-    """Calculate molecular properties using mock data for Render"""
+    """Calculate molecular properties"""
     try:
         smiles = smiles.strip()
+        # Use consistent random based on SMILES hash
         hash_val = abs(hash(smiles)) % 1000
         random.seed(hash_val)
         
@@ -125,15 +90,10 @@ def calculate_molecular_properties(smiles):
             'heavy_atoms': random.randint(15, 40),
             'num_rings': random.randint(1, 4),
             'smiles': smiles,
-            'fraction_csp3': round(random.uniform(0.2, 0.6), 3),
             'qed': round(random.uniform(0.4, 0.9), 3),
-            'num_aromatic_rings': random.randint(0, 2),
-            'num_aliphatic_rings': random.randint(0, 2),
-            'num_saturated_rings': random.randint(0, 2),
             'lipinski_violations': random.randint(0, 2),
             'drug_like': random.choice([True, False]),
             'bioavailability': random.choice([0.55, 0.17]),
-            'synthetic_accessibility': round(random.uniform(2, 6), 1)
         }
         
         random.seed()
@@ -150,7 +110,6 @@ def perform_virtual_screening(protein_id, compounds):
     """Perform virtual screening with enhanced scoring"""
     results = []
     
-    # FIXED: changed 'combinations' to 'compounds'
     for i, compound in enumerate(compounds):
         smiles = compound.get('smiles', '')
         props = calculate_molecular_properties(smiles)
@@ -184,15 +143,24 @@ def perform_virtual_screening(protein_id, compounds):
     return results
 
 def generate_chemical_space_plot(compounds, results_dict=None):
-    """Generate chemical space visualization with clear compound labels"""
+    """Generate chemical space visualization - FIXED VERSION"""
+    print(f"Generating chemical space plot for {len(compounds)} compounds")
+    
     if len(compounds) < 2:
+        print("Not enough compounds (need at least 2)")
         return None
     
-    valid_data = []
+    # Prepare data for PCA
+    data_points = []
+    labels = []
+    affinities = []
+    
     for comp in compounds:
         smiles = comp.get('smiles', '')
         props = calculate_molecular_properties(smiles)
+        
         if props:
+            # Get affinity from results if available
             affinity = -7.0
             if results_dict:
                 for res in results_dict:
@@ -200,85 +168,122 @@ def generate_chemical_space_plot(compounds, results_dict=None):
                         affinity = res.get('binding_affinity', -7.0)
                         break
             
-            valid_data.append({
-                'name': comp.get('name', 'Unknown'),
-                'mw': props['molecular_weight'],
-                'logp': props['logP'],
-                'tpsa': props['tpsa'],
-                'donors': props['h_donors'],
-                'acceptors': props['h_acceptors'],
-                'affinity': affinity
-            })
+            data_points.append([
+                props['molecular_weight'],
+                props['logP'],
+                props['tpsa'],
+                props['h_donors'],
+                props['h_acceptors']
+            ])
+            labels.append(comp.get('name', 'Unknown'))
+            affinities.append(affinity)
     
-    if len(valid_data) < 2:
+    if len(data_points) < 2:
+        print("Not enough valid data points for PCA")
         return None
     
-    features = []
-    names = []
-    affinities = []
-    
-    for data in valid_data:
-        features.append([data['mw'], data['logp'], data['tpsa'], data['donors'], data['acceptors']])
-        names.append(data['name'])
-        affinities.append(data['affinity'])
-    
+    # Perform PCA
     scaler = StandardScaler()
-    features_scaled = scaler.fit_transform(features)
+    scaled_data = scaler.fit_transform(data_points)
     
     pca = PCA(n_components=2)
-    pca_result = pca.fit_transform(features_scaled)
+    pca_result = pca.fit_transform(scaled_data)
     
-    # Color mapping based on affinity
+    # Create colors based on affinity
     colors = []
     for aff in affinities:
         if aff < -8:
-            colors.append('#10b981')
+            colors.append('#10b981')  # Green - excellent
         elif aff < -6:
-            colors.append('#f59e0b')
+            colors.append('#f59e0b')  # Orange - good
         else:
-            colors.append('#ef4444')
+            colors.append('#ef4444')  # Red - poor
     
+    # Create the plot
     fig = go.Figure()
     
+    # Add scatter points
     fig.add_trace(go.Scatter(
         x=pca_result[:, 0],
         y=pca_result[:, 1],
         mode='markers+text',
         marker=dict(
-            size=35,
+            size=40,
             color=colors,
             line=dict(width=2, color='white'),
             symbol='circle'
         ),
-        text=names,
+        text=labels,
         textposition='top center',
-        textfont=dict(size=11, color='white'),
-        hovertemplate='<b>%{text}</b><br>Affinity: %{customdata:.2f} kcal/mol<extra></extra>',
-        customdata=affinities
+        textfont=dict(
+            size=12,
+            color='white',
+            family='Arial, sans-serif'
+        ),
+        hovertemplate='<b>%{text}</b><br>' +
+                      'Binding Affinity: %{customdata:.2f} kcal/mol<br>' +
+                      'PC1: %{x:.3f}<br>' +
+                      'PC2: %{y:.3f}<extra></extra>',
+        customdata=affinities,
+        name='Compounds'
     ))
     
+    # Calculate axis ranges with padding
+    x_min, x_max = pca_result[:, 0].min(), pca_result[:, 0].max()
+    y_min, y_max = pca_result[:, 1].min(), pca_result[:, 1].max()
+    x_padding = (x_max - x_min) * 0.2 if x_max != x_min else 1
+    y_padding = (y_max - y_min) * 0.2 if y_max != y_min else 1
+    
+    # Update layout
     fig.update_layout(
-        title='Chemical Space Analysis (PCA)',
-        height=500,
-        plot_bgcolor='rgba(30,30,60,0.9)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        font={'color': 'white'},
-        xaxis_title=f"PC1 ({pca.explained_variance_ratio_[0]*100:.1f}%)",
-        yaxis_title=f"PC2 ({pca.explained_variance_ratio_[1]*100:.1f}%)",
-        xaxis=dict(gridcolor='rgba(255,255,255,0.15)'),
-        yaxis=dict(gridcolor='rgba(255,255,255,0.15)')
+        title=dict(
+            text='Chemical Space Analysis (PCA)',
+            font=dict(size=20, color='white'),
+            x=0.5
+        ),
+        height=550,
+        plot_bgcolor='rgba(30, 30, 60, 0.9)',
+        paper_bgcolor='rgba(0, 0, 0, 0)',
+        font=dict(color='white'),
+        xaxis=dict(
+            title=f'Principal Component 1 ({pca.explained_variance_ratio_[0]*100:.1f}%)',
+            titlefont=dict(size=14),
+            tickfont=dict(size=11),
+            gridcolor='rgba(255,255,255,0.15)',
+            zerolinecolor='rgba(255,255,255,0.2)',
+            range=[x_min - x_padding, x_max + x_padding]
+        ),
+        yaxis=dict(
+            title=f'Principal Component 2 ({pca.explained_variance_ratio_[1]*100:.1f}%)',
+            titlefont=dict(size=14),
+            tickfont=dict(size=11),
+            gridcolor='rgba(255,255,255,0.15)',
+            zerolinecolor='rgba(255,255,255,0.2)',
+            range=[y_min - y_padding, y_max + y_padding]
+        ),
+        hovermode='closest',
+        margin=dict(l=80, r=80, t=80, b=80)
     )
     
-    # Add padding to prevent label cutoff
-    x_min, x_max = min(pca_result[:, 0]), max(pca_result[:, 0])
-    y_min, y_max = min(pca_result[:, 1]), max(pca_result[:, 1])
-    x_padding = (x_max - x_min) * 0.2
-    y_padding = (y_max - y_min) * 0.2
+    # Add legend annotation
+    fig.add_annotation(
+        x=0.98,
+        y=0.02,
+        xref='paper',
+        yref='paper',
+        text='🟢 Excellent (&lt;-8) &nbsp;&nbsp; 🟡 Good (-6 to -8) &nbsp;&nbsp; 🔴 Weak (&gt;-6)',
+        showarrow=False,
+        font=dict(size=11, color='rgba(255,255,255,0.9)'),
+        bgcolor='rgba(0,0,0,0.6)',
+        bordercolor='rgba(255,255,255,0.3)',
+        borderwidth=1,
+        borderpad=6,
+        align='right'
+    )
     
-    fig.update_xaxes(range=[x_min - x_padding, x_max + x_padding])
-    fig.update_yaxes(range=[y_min - y_padding, y_max + y_padding])
-    
-    return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+    result = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+    print(f"Chemical space plot generated successfully")
+    return result
 
 def generate_activity_heatmap(results):
     """Generate activity heatmap"""
@@ -456,10 +461,14 @@ def run_docking():
     compounds = data.get('compounds', [])
     save_session = data.get('save_session', False)
     
+    print(f"Running docking for protein: {protein_id}, compounds: {len(compounds)}")
+    
     if not protein_id or not compounds:
         return jsonify({'error': 'Protein ID and compounds required'}), 400
     
     results = perform_virtual_screening(protein_id, compounds)
+    print(f"Screening complete, {len(results)} results")
+    
     chemical_space = generate_chemical_space_plot(compounds, results)
     activity_heatmap = generate_activity_heatmap(results)
     similarity_heatmap = generate_similarity_heatmap(results)
@@ -484,7 +493,7 @@ def run_docking():
         while len(screening_history) > 20:
             screening_history.pop()
     
-    return jsonify({
+    response_data = {
         'success': True,
         'results': results,
         'chemical_space': chemical_space,
@@ -492,7 +501,9 @@ def run_docking():
         'similarity_heatmap': similarity_heatmap,
         'admet_radar': admet_radar,
         'message': f'Docking complete. Screened {len(results)} compounds.'
-    })
+    }
+    
+    return jsonify(response_data)
 
 @app.route('/api/batch/dock', methods=['POST'])
 def batch_dock():
@@ -509,7 +520,7 @@ def batch_dock():
             df = pd.read_csv(file)
             for _, row in df.iterrows():
                 smiles = str(row.get('smiles', '')).strip()
-                if smiles:
+                if smiles and len(smiles) > 1:
                     compounds.append({
                         'name': str(row.get('name', f"C{len(compounds)+1}")),
                         'smiles': smiles
@@ -671,4 +682,4 @@ def get_examples():
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=port, debug=False)
