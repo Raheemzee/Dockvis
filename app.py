@@ -28,7 +28,6 @@ else:
     app.config['UPLOAD_FOLDER'] = 'uploads'
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-os.makedirs('static/temp', exist_ok=True)
 
 # Store screening history
 screening_history = []
@@ -41,7 +40,7 @@ def get_molecule_image(smiles, name):
         response = requests.get(url, timeout=3)
         if response.status_code == 200:
             img_base64 = base64.b64encode(response.content).decode()
-            return f'<img src="data:image/png;base64,{img_base64}" style="max-width:100%; border-radius:10px; background:white; padding:10px;">'
+            return f'<img src="data:image/png;base64,{img_base64}" style="max-width:100%; border-radius:10px;">'
     except:
         pass
     return f'<div style="background:#1a1a2e; border-radius:15px; padding:20px; text-align:center;"><i class="fas fa-draw-polygon" style="font-size:60px; color:#667eea;"></i><div class="mt-2"><small>{name}</small></div></div>'
@@ -103,73 +102,157 @@ def run_screening(protein_id, compounds):
     return results
 
 def make_pca_plot(compounds, results):
-    """Create PCA plot for chemical space"""
+    """Create PCA plot for chemical space - FIXED VERSION"""
+    print(f"make_pca_plot called with {len(compounds)} compounds")
+    
     if len(compounds) < 2:
+        print("Not enough compounds (need at least 2)")
         return None
     
     points = []
     labels = []
     scores = []
+    colors_list = []
     
     for comp in compounds:
         smiles = comp.get('smiles', '')
         props = get_properties(smiles)
         if props:
+            # Find the score for this compound
+            score = -7.0
             for res in results:
                 if res.get('smiles') == smiles:
                     score = res.get('binding_affinity', -7.0)
                     break
-            else:
-                score = -7.0
             
-            points.append([props['molecular_weight'], props['logP'], props['tpsa'], props['h_donors'], props['h_acceptors']])
+            points.append([
+                props['molecular_weight'],
+                props['logP'],
+                props['tpsa'],
+                props['h_donors'],
+                props['h_acceptors']
+            ])
             labels.append(comp.get('name', 'Unknown'))
             scores.append(score)
+            
+            # Determine color based on score
+            if score < -8:
+                colors_list.append('#10b981')  # Green - excellent
+            elif score < -6:
+                colors_list.append('#f59e0b')  # Orange - good
+            else:
+                colors_list.append('#ef4444')  # Red - poor
     
     if len(points) < 2:
+        print("Not enough valid data points")
         return None
     
-    # PCA
+    print(f"PCA input: {len(points)} points, labels: {labels}, scores: {scores}")
+    
+    # Perform PCA
     scaler = StandardScaler()
-    scaled = scaler.fit_transform(points)
+    scaled_points = scaler.fit_transform(points)
     pca = PCA(n_components=2)
-    coords = pca.fit_transform(scaled)
+    coords = pca.fit_transform(scaled_points)
     
-    # Colors
-    colors = ['#10b981' if s < -8 else '#f59e0b' if s < -6 else '#ef4444' for s in scores]
+    print(f"PCA coordinates: {coords}")
     
+    # Create the plot
     fig = go.Figure()
+    
+    # Add trace with markers and text
     fig.add_trace(go.Scatter(
-        x=coords[:, 0],
-        y=coords[:, 1],
+        x=coords[:, 0].tolist(),
+        y=coords[:, 1].tolist(),
         mode='markers+text',
-        marker=dict(size=35, color=colors, line=dict(width=2, color='white')),
+        marker=dict(
+            size=40,
+            color=colors_list,
+            line=dict(width=2, color='white'),
+            symbol='circle'
+        ),
         text=labels,
         textposition='top center',
-        textfont=dict(size=11, color='white'),
-        hovertemplate='<b>%{text}</b><br>Affinity: %{customdata:.2f} kcal/mol<extra></extra>',
-        customdata=scores
+        textfont=dict(
+            size=12,
+            color='white',
+            family='Arial Black, Arial, sans-serif'
+        ),
+        hovertemplate='<b>%{text}</b><br>' +
+                      'Binding Affinity: %{customdata:.2f} kcal/mol<br>' +
+                      'PC1: %{x:.3f}<br>' +
+                      'PC2: %{y:.3f}<extra></extra>',
+        customdata=scores,
+        name='Compounds'
     ))
     
-    var1 = pca.explained_variance_ratio_[0] * 100
-    var2 = pca.explained_variance_ratio_[1] * 100
+    # Calculate variance percentages
+    var_pc1 = pca.explained_variance_ratio_[0] * 100
+    var_pc2 = pca.explained_variance_ratio_[1] * 100
     
+    # Add padding to axis ranges
+    x_min, x_max = coords[:, 0].min(), coords[:, 0].max()
+    y_min, y_max = coords[:, 1].min(), coords[:, 1].max()
+    x_padding = max((x_max - x_min) * 0.2, 0.5)
+    y_padding = max((y_max - y_min) * 0.2, 0.5)
+    
+    # Update layout
     fig.update_layout(
-        title=dict(text='Chemical Space Analysis', font=dict(color='white'), x=0.5),
-        height=500,
-        plot_bgcolor='rgba(30,30,60,0.9)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        font=dict(color='white'),
-        xaxis=dict(title=f'PC1 ({var1:.1f}%)', gridcolor='rgba(255,255,255,0.15)'),
-        yaxis=dict(title=f'PC2 ({var2:.1f}%)', gridcolor='rgba(255,255,255,0.15)')
+        title=dict(
+            text='Chemical Space Analysis (PCA)',
+            font=dict(size=20, color='white', family='Arial'),
+            x=0.5
+        ),
+        height=550,
+        plot_bgcolor='rgba(30, 30, 60, 0.95)',
+        paper_bgcolor='rgba(0, 0, 0, 0)',
+        font=dict(color='white', family='Arial'),
+        xaxis=dict(
+            title=f'Principal Component 1 ({var_pc1:.1f}% variance)',
+            titlefont=dict(size=14),
+            tickfont=dict(size=11),
+            gridcolor='rgba(255,255,255,0.15)',
+            zerolinecolor='rgba(255,255,255,0.2)',
+            range=[x_min - x_padding, x_max + x_padding],
+            showgrid=True,
+            showline=True,
+            linecolor='rgba(255,255,255,0.3)'
+        ),
+        yaxis=dict(
+            title=f'Principal Component 2 ({var_pc2:.1f}% variance)',
+            titlefont=dict(size=14),
+            tickfont=dict(size=11),
+            gridcolor='rgba(255,255,255,0.15)',
+            zerolinecolor='rgba(255,255,255,0.2)',
+            range=[y_min - y_padding, y_max + y_padding],
+            showgrid=True,
+            showline=True,
+            linecolor='rgba(255,255,255,0.3)'
+        ),
+        hovermode='closest',
+        margin=dict(l=80, r=80, t=80, b=80),
+        showlegend=False
     )
     
-    x_range = coords[:, 0].max() - coords[:, 0].min()
-    y_range = coords[:, 1].max() - coords[:, 1].min()
-    fig.update_xaxes(range=[coords[:, 0].min() - x_range*0.2, coords[:, 0].max() + x_range*0.2])
-    fig.update_yaxes(range=[coords[:, 1].min() - y_range*0.2, coords[:, 1].max() + y_range*0.2])
+    # Add legend annotation at bottom
+    fig.add_annotation(
+        x=0.5,
+        y=-0.12,
+        xref='paper',
+        yref='paper',
+        text='🟢 Excellent (&lt;-8 kcal/mol) &nbsp;&nbsp;&nbsp; 🟡 Good (-6 to -8) &nbsp;&nbsp;&nbsp; 🔴 Weak (&gt;-6)',
+        showarrow=False,
+        font=dict(size=12, color='rgba(255,255,255,0.9)'),
+        bgcolor='rgba(0,0,0,0.5)',
+        bordercolor='rgba(255,255,255,0.3)',
+        borderwidth=1,
+        borderpad=8,
+        align='center'
+    )
     
-    return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+    result_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+    print(f"Plot generated successfully, length: {len(result_json)}")
+    return result_json
 
 def make_heatmap(results):
     """Create binding affinity heatmap"""
@@ -181,12 +264,13 @@ def make_heatmap(results):
     
     fig = go.Figure(data=go.Heatmap(
         z=[scores],
-        y=['Affinity'],
+        y=['Binding Affinity'],
         x=names,
         colorscale='RdYlGn_r',
         text=[[f'{s:.2f}' for s in scores]],
-        texttemplate='%{text}',
-        colorbar=dict(title='kcal/mol')
+        texttemplate='%{text} kcal/mol',
+        textfont=dict(size=11, color='white'),
+        colorbar=dict(title='kcal/mol', len=0.8)
     ))
     
     fig.update_layout(
@@ -194,7 +278,8 @@ def make_heatmap(results):
         height=350,
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
-        font=dict(color='white')
+        font=dict(color='white'),
+        xaxis=dict(tickangle=45)
     )
     
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
@@ -214,15 +299,17 @@ def make_similarity_plot(results):
         y=names,
         colorscale='Viridis',
         text=[[str(matrix[i][j]) for j in range(n)] for i in range(n)],
-        texttemplate='%{text}'
+        texttemplate='%{text}',
+        textfont=dict(size=10)
     ))
     
     fig.update_layout(
-        title='Molecular Similarity',
+        title='Molecular Similarity Matrix',
         height=450,
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
-        font=dict(color='white')
+        font=dict(color='white'),
+        xaxis=dict(tickangle=45)
     )
     
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
@@ -243,14 +330,34 @@ def make_admet_plot(props):
     ]
     
     fig = go.Figure()
-    fig.add_trace(go.Scatterpolar(r=values, theta=categories, fill='toself', name='Compound'))
-    fig.add_trace(go.Scatterpolar(r=[0.7,0.7,0.5,0.5,0.5,0.8], theta=categories, fill='toself', name='Optimal', line=dict(dash='dash')))
+    fig.add_trace(go.Scatterpolar(
+        r=values,
+        theta=categories,
+        fill='toself',
+        name='Compound',
+        line=dict(color='#667eea', width=2),
+        fillcolor='rgba(102,126,234,0.3)'
+    ))
+    
+    optimal = [0.7, 0.7, 0.5, 0.5, 0.5, 0.8]
+    fig.add_trace(go.Scatterpolar(
+        r=optimal,
+        theta=categories,
+        fill='toself',
+        name='Optimal',
+        line=dict(color='#10b981', width=1, dash='dash'),
+        fillcolor='rgba(16,185,129,0.1)'
+    ))
     
     fig.update_layout(
-        polar=dict(radialaxis=dict(range=[0,1])),
-        title='ADMET Assessment',
+        polar=dict(
+            radialaxis=dict(range=[0, 1], gridcolor='rgba(255,255,255,0.2)'),
+            angularaxis=dict(gridcolor='rgba(255,255,255,0.2)')
+        ),
+        title='ADMET Property Assessment',
         height=450,
-        font=dict(color='white')
+        font=dict(color='white'),
+        showlegend=True
     )
     
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
@@ -294,16 +401,27 @@ def docking_run():
     protein_id = data.get('protein_id')
     compounds = data.get('compounds', [])
     
+    print(f"=== DOCKING RUN ===")
+    print(f"Protein: {protein_id}")
+    print(f"Compounds count: {len(compounds)}")
+    
     if not protein_id or not compounds:
         return jsonify({'error': 'Protein and compounds required'}), 400
     
     # Filter valid compounds
     valid = [c for c in compounds if c.get('smiles', '').strip()]
+    print(f"Valid compounds: {len(valid)}")
+    
     if not valid:
         return jsonify({'error': 'No valid compounds'}), 400
     
     results = run_screening(protein_id, valid)
+    print(f"Results count: {len(results)}")
+    
+    # Generate plots
     pca_plot = make_pca_plot(valid, results)
+    print(f"PCA plot generated: {pca_plot is not None}")
+    
     heatmap = make_heatmap(results)
     similarity = make_similarity_plot(results)
     
@@ -311,20 +429,21 @@ def docking_run():
     admet = make_admet_plot(top.get('properties')) if top else None
     
     # Save to history
-    session = {
-        'id': hashlib.md5(f"{protein_id}_{datetime.now()}".encode()).hexdigest()[:8],
-        'protein_id': protein_id,
-        'timestamp': datetime.now().isoformat(),
-        'num_compounds': len(results),
-        'top_affinity': results[0]['binding_affinity'],
-        'avg_affinity': sum(r['binding_affinity'] for r in results) / len(results),
-        'drug_like_count': sum(1 for r in results if r.get('properties', {}).get('drug_like'))
-    }
-    screening_history.insert(0, session)
-    while len(screening_history) > 20:
-        screening_history.pop()
+    if results:
+        session = {
+            'id': hashlib.md5(f"{protein_id}_{datetime.now()}".encode()).hexdigest()[:8],
+            'protein_id': protein_id,
+            'timestamp': datetime.now().isoformat(),
+            'num_compounds': len(results),
+            'top_affinity': results[0]['binding_affinity'],
+            'avg_affinity': sum(r['binding_affinity'] for r in results) / len(results),
+            'drug_like_count': sum(1 for r in results if r.get('properties', {}).get('drug_like'))
+        }
+        screening_history.insert(0, session)
+        while len(screening_history) > 20:
+            screening_history.pop()
     
-    return jsonify({
+    response = {
         'success': True,
         'results': results,
         'chemical_space': pca_plot,
@@ -332,7 +451,10 @@ def docking_run():
         'similarity_heatmap': similarity,
         'admet_radar': admet,
         'message': f'Screened {len(results)} compounds'
-    })
+    }
+    
+    print(f"Response keys: {response.keys()}")
+    return jsonify(response)
 
 @app.route('/api/batch/dock', methods=['POST'])
 def batch_dock():
@@ -412,8 +534,8 @@ def radar_chart_route(smiles_list):
         ))
     
     fig.update_layout(
-        polar=dict(radialaxis=dict(range=[0,1])),
-        title='Property Comparison',
+        polar=dict(radialaxis=dict(range=[0, 1], gridcolor='rgba(255,255,255,0.2)')),
+        title='Molecular Properties Comparison',
         height=450,
         font=dict(color='white')
     )
@@ -468,4 +590,4 @@ def get_examples():
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=port, debug=False)
