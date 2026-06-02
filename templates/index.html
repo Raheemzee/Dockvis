@@ -909,102 +909,110 @@
         }
         
         function displayResults(data) {
-            const resultsList = document.getElementById('resultsList');
-            const chemicalSpace = document.getElementById('chemicalSpace');
-            const activityHeatmap = document.getElementById('activityHeatmap');
-            const similarityHeatmap = document.getElementById('similarityHeatmap');
-            const admetRadar = document.getElementById('admetRadar');
-            const moleculeViewer = document.getElementById('moleculeViewer');
-            
-            // Display results list
-            let resultsHtml = '<div class="list-group">';
-            data.results.forEach((result, index) => {
-                let scoreClass = 'score-moderate';
-                if (result.binding_affinity < -8) {
-                    scoreClass = 'score-excellent';
-                } else if (result.binding_affinity < -6) {
-                    scoreClass = 'score-good';
-                } else if (result.binding_affinity > -4) {
-                    scoreClass = 'score-poor';
-                }
-                
-                const drugLikeBadge = result.properties?.drug_like ? 
-                    '<span class="drug-like-badge ms-2">💊 Drug-like</span>' : '';
-                
-                resultsHtml += `
-                    <div class="list-group-item result-card" onclick="selectCompound(${index})">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <strong>#${result.rank}</strong> ${escapeHtml(result.compound)}
-                                ${drugLikeBadge}
-                                <br>
-                                <small class="text-muted">${escapeHtml(result.smiles.substring(0, 50))}...</small>
-                                ${result.properties ? `<br><small>MW: ${result.properties.molecular_weight} | LogP: ${result.properties.logP} | QED: ${result.properties.qed}</small>` : ''}
-                            </div>
-                            <div>
-                                <span class="score-badge ${scoreClass}">
-                                    ${result.binding_affinity} kcal/mol
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            });
-            resultsHtml += '</div>';
-            resultsList.innerHTML = resultsHtml;
-            
-            // Display molecule viewer for top compound
-            if (data.results.length > 0 && data.results[0].image_html) {
-                moleculeViewer.innerHTML = data.results[0].image_html;
-            } else {
-                moleculeViewer.innerHTML = '<div class="text-center p-5">No molecule image available</div>';
-            }
-            
-            // Display chemical space plot
-            if (data.chemical_space) {
-                try {
-                    const plotData = JSON.parse(data.chemical_space);
-                    Plotly.newPlot(chemicalSpace, plotData.data, plotData.layout, {responsive: true});
-                } catch(e) {
-                    chemicalSpace.innerHTML = '<div class="text-center">⚠️ Add at least 2 compounds for chemical space analysis</div>';
-                }
-            } else {
-                chemicalSpace.innerHTML = '<div class="text-center">⚠️ Add at least 2 compounds to see chemical space analysis</div>';
-            }
-            
-            // Display activity heatmap
-            if (data.activity_heatmap) {
-                try {
-                    const heatmapData = JSON.parse(data.activity_heatmap);
-                    Plotly.newPlot(activityHeatmap, heatmapData.data, heatmapData.layout, {responsive: true});
-                } catch(e) {
-                    console.error('Heatmap error:', e);
-                }
-            }
-            
-            // Display similarity heatmap
-            if (data.similarity_heatmap) {
-                try {
-                    const simData = JSON.parse(data.similarity_heatmap);
-                    Plotly.newPlot(similarityHeatmap, simData.data, simData.layout, {responsive: true});
-                } catch(e) {
-                    console.error('Similarity heatmap error:', e);
-                }
-            }
-            
-            // Display ADMET radar
-            if (data.admet_radar) {
-                try {
-                    const admetData = JSON.parse(data.admet_radar);
-                    Plotly.newPlot(admetRadar, admetData.data, admetData.layout, {responsive: true});
-                } catch(e) {
-                    console.error('ADMET radar error:', e);
-                }
-            }
-            
-            // Load radar chart
-            loadRadarChart(data.results.slice(0, 3));
+    console.log("Displaying results:", data);
+    
+    const resultsList = document.getElementById('resultsList');
+    const chemicalSpace = document.getElementById('chemicalSpace');
+    const activityHeatmap = document.getElementById('activityHeatmap');
+    const similarityHeatmap = document.getElementById('similarityHeatmap');
+    const admetRadar = document.getElementById('admetRadar');
+    const moleculeViewer = document.getElementById('moleculeViewer');
+    
+    // Display results list (same as before)
+    let resultsHtml = '<div class="list-group">';
+    data.results.forEach((result, index) => {
+        let scoreClass = 'score-moderate';
+        if (result.binding_affinity < -8) {
+            scoreClass = 'score-excellent';
+        } else if (result.binding_affinity < -6) {
+            scoreClass = 'score-good';
+        } else if (result.binding_affinity > -4) {
+            scoreClass = 'score-poor';
         }
+        
+        const drugLikeBadge = result.properties?.drug_like ? 
+            '<span class="drug-like-badge ms-2">💊 Drug-like</span>' : '';
+        
+        resultsHtml += `
+            <div class="list-group-item result-card" onclick="selectCompound(${index})">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>#${result.rank}</strong> ${result.compound}
+                        ${drugLikeBadge}
+                        <br>
+                        <small class="text-muted">${result.smiles.substring(0, 50)}...</small>
+                        ${result.properties ? `<br><small>MW: ${result.properties.molecular_weight} | LogP: ${result.properties.logP}</small>` : ''}
+                    </div>
+                    <div>
+                        <span class="score-badge ${scoreClass}">
+                            ${result.binding_affinity} kcal/mol
+                        </span>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    resultsHtml += '</div>';
+    resultsList.innerHTML = resultsHtml;
+    
+    // Display molecule viewer
+    if (data.results.length > 0 && data.results[0].image_html) {
+        moleculeViewer.innerHTML = data.results[0].image_html;
+    }
+    
+    // Chemical Space Plot
+    if (data.chemical_space) {
+        console.log("Chemical space data received, length:", data.chemical_space.length);
+        try {
+            const plotData = JSON.parse(data.chemical_space);
+            console.log("Plot data parsed successfully, traces:", plotData.data.length);
+            Plotly.newPlot(chemicalSpace, plotData.data, plotData.layout, {
+                responsive: true,
+                displayModeBar: true
+            });
+            console.log("Plot rendered successfully");
+        } catch(e) {
+            console.error("Plot error:", e);
+            chemicalSpace.innerHTML = `<div class="text-center text-danger">Plot error: ${e.message}</div>`;
+        }
+    } else {
+        console.log("No chemical space data received");
+        chemicalSpace.innerHTML = '<div class="text-center">⚠️ Add at least 2 compounds to see chemical space analysis</div>';
+    }
+    
+    // Heatmap
+    if (data.activity_heatmap) {
+        try {
+            const heatmapData = JSON.parse(data.activity_heatmap);
+            Plotly.newPlot(activityHeatmap, heatmapData.data, heatmapData.layout, {responsive: true});
+        } catch(e) {
+            console.error("Heatmap error:", e);
+        }
+    }
+    
+    // Similarity
+    if (data.similarity_heatmap) {
+        try {
+            const simData = JSON.parse(data.similarity_heatmap);
+            Plotly.newPlot(similarityHeatmap, simData.data, simData.layout, {responsive: true});
+        } catch(e) {
+            console.error("Similarity error:", e);
+        }
+    }
+    
+    // ADMET
+    if (data.admet_radar) {
+        try {
+            const admetData = JSON.parse(data.admet_radar);
+            Plotly.newPlot(admetRadar, admetData.data, admetData.layout, {responsive: true});
+        } catch(e) {
+            console.error("ADMET error:", e);
+        }
+    }
+    
+    // Radar chart
+    loadRadarChart(data.results.slice(0, 3));
+}
         
         async function loadRadarChart(topResults) {
             if (!topResults || topResults.length === 0) return;
