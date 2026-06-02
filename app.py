@@ -201,7 +201,7 @@ def perform_virtual_screening(protein_id, compounds):
     return results
 
 def generate_chemical_space_plot(compounds, results_dict=None):
-    """Generate chemical space visualization with clustering"""
+    """Generate chemical space visualization with clear compound labels"""
     if len(compounds) < 2:
         return None
     
@@ -209,7 +209,7 @@ def generate_chemical_space_plot(compounds, results_dict=None):
     for comp in compounds:
         smiles = comp.get('smiles', '')
         props = calculate_molecular_properties(smiles)
-        if props:
+        if props and props.get('molecular_weight', 0) > 0:
             affinity = -7.0
             if results_dict:
                 for res in results_dict:
@@ -246,37 +246,123 @@ def generate_chemical_space_plot(compounds, results_dict=None):
     pca = PCA(n_components=2)
     pca_result = pca.fit_transform(features_scaled)
     
+    # Create color mapping based on affinity
+    colors = []
+    color_descriptions = []
+    for aff in affinities:
+        if aff < -8:
+            colors.append('#10b981')
+            color_descriptions.append('Excellent binder')
+        elif aff < -6:
+            colors.append('#f59e0b')
+            color_descriptions.append('Good binder')
+        else:
+            colors.append('#ef4444')
+            color_descriptions.append('Weak binder')
+    
     fig = go.Figure()
     
+    # Add scatter plot with improved label positioning
     fig.add_trace(go.Scatter(
         x=pca_result[:, 0],
         y=pca_result[:, 1],
         mode='markers+text',
         marker=dict(
-            size=25,
-            color=affinities,
-            colorscale='RdYlGn_r',
-            showscale=True,
-            colorbar=dict(title="Binding Affinity<br>(kcal/mol)"),
-            line=dict(width=2, color='white')
+            size=40,
+            color=colors,
+            line=dict(width=2, color='white'),
+            symbol='circle'
         ),
         text=names,
-        textposition="top center",
-        textfont=dict(size=11, color='white'),
-        hovertemplate='<b>%{text}</b><br>Affinity: %{marker.color:.2f} kcal/mol<extra></extra>'
+        textposition='top center',
+        textfont=dict(
+            size=11,
+            color='white',
+            family='Arial Black, Arial, sans-serif'
+        ),
+        hovertemplate='<b>%{text}</b><br>' +
+                     'Binding Affinity: %{customdata[0]:.2f} kcal/mol<br>' +
+                     'Status: %{customdata[1]}<br>' +
+                     'PC1: %{x:.3f}<br>' +
+                     'PC2: %{y:.3f}<extra></extra>',
+        customdata=[[aff, desc] for aff, desc in zip(affinities, color_descriptions)]
     ))
     
+    # Add variance explained text
+    var_text = f"PC1 explains {pca.explained_variance_ratio_[0]*100:.1f}% of variance<br>PC2 explains {pca.explained_variance_ratio_[1]*100:.1f}% of variance"
+    
     fig.update_layout(
-        title='Chemical Space Analysis',
-        height=500,
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        font={'color': 'white'},
-        xaxis_title=f"PC1 ({pca.explained_variance_ratio_[0]*100:.1f}%)",
-        yaxis_title=f"PC2 ({pca.explained_variance_ratio_[1]*100:.1f}%)",
-        xaxis=dict(gridcolor='rgba(255,255,255,0.2)'),
-        yaxis=dict(gridcolor='rgba(255,255,255,0.2)')
+        title={
+            'text': 'Chemical Space Analysis (PCA) - Click dots for details',
+            'font': {'size': 18, 'color': 'white', 'family': 'Arial, sans-serif'},
+            'x': 0.5
+        },
+        height=550,
+        plot_bgcolor='rgba(30, 30, 60, 0.9)',
+        paper_bgcolor='rgba(0, 0, 0, 0)',
+        font={'color': 'white', 'family': 'Arial, sans-serif'},
+        xaxis=dict(
+            title=f"Principal Component 1 ({pca.explained_variance_ratio_[0]*100:.1f}%)",
+            titlefont=dict(size=14, color='white'),
+            tickfont=dict(size=11, color='white'),
+            gridcolor='rgba(255,255,255,0.15)',
+            zerolinecolor='rgba(255,255,255,0.2)',
+            showgrid=True,
+            showline=True,
+            linecolor='rgba(255,255,255,0.3)'
+        ),
+        yaxis=dict(
+            title=f"Principal Component 2 ({pca.explained_variance_ratio_[1]*100:.1f}%)",
+            titlefont=dict(size=14, color='white'),
+            tickfont=dict(size=11, color='white'),
+            gridcolor='rgba(255,255,255,0.15)',
+            zerolinecolor='rgba(255,255,255,0.2)',
+            showgrid=True,
+            showline=True,
+            linecolor='rgba(255,255,255,0.3)'
+        ),
+        hovermode='closest',
+        margin=dict(l=80, r=80, t=100, b=80),
+        annotations=[
+            dict(
+                x=0.02,
+                y=0.98,
+                xref='paper',
+                yref='paper',
+                text=var_text,
+                showarrow=False,
+                font=dict(size=10, color='rgba(255,255,255,0.8)'),
+                bgcolor='rgba(0,0,0,0.6)',
+                bordercolor='rgba(255,255,255,0.3)',
+                borderwidth=1,
+                borderpad=6,
+                align='left'
+            ),
+            dict(
+                x=0.98,
+                y=0.02,
+                xref='paper',
+                yref='paper',
+                text='🟢 Excellent (&lt;-8) &nbsp;&nbsp; 🟡 Good (-6 to -8) &nbsp;&nbsp; 🔴 Weak (&gt;-6)',
+                showarrow=False,
+                font=dict(size=10, color='rgba(255,255,255,0.8)'),
+                bgcolor='rgba(0,0,0,0.5)',
+                bordercolor='rgba(255,255,255,0.3)',
+                borderwidth=1,
+                borderpad=6,
+                align='right'
+            )
+        ]
     )
+    
+    # Adjust axis ranges to prevent label cutoff
+    x_min, x_max = min(pca_result[:, 0]), max(pca_result[:, 0])
+    y_min, y_max = min(pca_result[:, 1]), max(pca_result[:, 1])
+    x_padding = (x_max - x_min) * 0.25
+    y_padding = (y_max - y_min) * 0.25
+    
+    fig.update_xaxes(range=[x_min - x_padding, x_max + x_padding])
+    fig.update_yaxes(range=[y_min - y_padding, y_max + y_padding])
     
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
