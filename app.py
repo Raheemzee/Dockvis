@@ -40,10 +40,7 @@ screening_history = []
 def fetch_molecule_image_from_pubchem(smiles, compound_name):
     """Fetch molecule image from PubChem API (no RDKit needed)"""
     try:
-        # URL encode the SMILES
         encoded_smiles = urllib.parse.quote(smiles)
-        
-        # Try to get PNG from PubChem
         url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/smiles/{encoded_smiles}/PNG"
         response = requests.get(url, timeout=5)
         
@@ -53,7 +50,7 @@ def fetch_molecule_image_from_pubchem(smiles, compound_name):
     except:
         pass
     
-    # Fallback to chemical identifier resolver
+    # Fallback to NCI resolver
     try:
         url = f"https://cactus.nci.nih.gov/chemical/structure/{encoded_smiles}/image"
         response = requests.get(url, timeout=5)
@@ -64,10 +61,6 @@ def fetch_molecule_image_from_pubchem(smiles, compound_name):
         pass
     
     # Final fallback - HTML/CSS representation
-    return generate_simple_molecule_display(smiles, compound_name)
-
-def generate_simple_molecule_display(smiles, compound_name):
-    """Generate a simple but nice-looking molecule display without external APIs"""
     mol_id = hashlib.md5(smiles.encode()).hexdigest()[:8]
     
     return f'''
@@ -80,15 +73,11 @@ def generate_simple_molecule_display(smiles, compound_name):
                         <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
                     </linearGradient>
                 </defs>
-                <!-- Hexagon ring -->
                 <polygon points="150,40 185,70 185,110 150,140 115,110 115,70" fill="none" stroke="url(#grad{mol_id})" stroke-width="3"/>
-                <!-- Double bond -->
                 <line x1="185" y1="70" x2="220" y2="90" stroke="#e74c3c" stroke-width="3"/>
                 <line x1="185" y1="75" x2="220" y2="95" stroke="#e74c3c" stroke-width="2"/>
-                <!-- Oxygen atom -->
                 <circle cx="220" cy="90" r="15" fill="#e74c3c"/>
                 <text x="220" y="95" text-anchor="middle" fill="white" font-size="12" font-weight="bold">O</text>
-                <!-- Additional atoms -->
                 <circle cx="115" cy="70" r="15" fill="#10b981"/>
                 <text x="115" y="75" text-anchor="middle" fill="white" font-size="12" font-weight="bold">C</text>
                 <circle cx="115" cy="110" r="15" fill="#10b981"/>
@@ -123,11 +112,7 @@ def calculate_molecular_properties(smiles):
     """Calculate molecular properties using mock data for Render"""
     try:
         smiles = smiles.strip()
-        
-        # Generate realistic mock properties based on SMILES hash for consistency
-        hash_val = hash(smiles) % 1000
-        
-        # Consistent random generation based on SMILES
+        hash_val = abs(hash(smiles)) % 1000
         random.seed(hash_val)
         
         properties = {
@@ -151,9 +136,7 @@ def calculate_molecular_properties(smiles):
             'synthetic_accessibility': round(random.uniform(2, 6), 1)
         }
         
-        # Reset random seed
         random.seed()
-        
         return properties
     except Exception as e:
         print(f"Error calculating properties: {e}")
@@ -167,6 +150,7 @@ def perform_virtual_screening(protein_id, compounds):
     """Perform virtual screening with enhanced scoring"""
     results = []
     
+    # FIXED: changed 'combinations' to 'compounds'
     for i, compound in enumerate(compounds):
         smiles = compound.get('smiles', '')
         props = calculate_molecular_properties(smiles)
@@ -182,7 +166,6 @@ def perform_virtual_screening(protein_id, compounds):
             if 250 < mw < 500:
                 base_score -= random.uniform(0.2, 0.6)
         
-        # Generate molecule image HTML
         image_html = generate_molecule_image_html(smiles, compound.get('name', f'Compound_{i+1}'))
         
         results.append({
@@ -209,7 +192,7 @@ def generate_chemical_space_plot(compounds, results_dict=None):
     for comp in compounds:
         smiles = comp.get('smiles', '')
         props = calculate_molecular_properties(smiles)
-        if props and props.get('molecular_weight', 0) > 0:
+        if props:
             affinity = -7.0
             if results_dict:
                 for res in results_dict:
@@ -224,7 +207,6 @@ def generate_chemical_space_plot(compounds, results_dict=None):
                 'tpsa': props['tpsa'],
                 'donors': props['h_donors'],
                 'acceptors': props['h_acceptors'],
-                'rings': props['num_rings'],
                 'affinity': affinity
             })
     
@@ -246,120 +228,52 @@ def generate_chemical_space_plot(compounds, results_dict=None):
     pca = PCA(n_components=2)
     pca_result = pca.fit_transform(features_scaled)
     
-    # Create color mapping based on affinity
+    # Color mapping based on affinity
     colors = []
-    color_descriptions = []
     for aff in affinities:
         if aff < -8:
             colors.append('#10b981')
-            color_descriptions.append('Excellent binder')
         elif aff < -6:
             colors.append('#f59e0b')
-            color_descriptions.append('Good binder')
         else:
             colors.append('#ef4444')
-            color_descriptions.append('Weak binder')
     
     fig = go.Figure()
     
-    # Add scatter plot with improved label positioning
     fig.add_trace(go.Scatter(
         x=pca_result[:, 0],
         y=pca_result[:, 1],
         mode='markers+text',
         marker=dict(
-            size=40,
+            size=35,
             color=colors,
             line=dict(width=2, color='white'),
             symbol='circle'
         ),
         text=names,
         textposition='top center',
-        textfont=dict(
-            size=11,
-            color='white',
-            family='Arial Black, Arial, sans-serif'
-        ),
-        hovertemplate='<b>%{text}</b><br>' +
-                     'Binding Affinity: %{customdata[0]:.2f} kcal/mol<br>' +
-                     'Status: %{customdata[1]}<br>' +
-                     'PC1: %{x:.3f}<br>' +
-                     'PC2: %{y:.3f}<extra></extra>',
-        customdata=[[aff, desc] for aff, desc in zip(affinities, color_descriptions)]
+        textfont=dict(size=11, color='white'),
+        hovertemplate='<b>%{text}</b><br>Affinity: %{customdata:.2f} kcal/mol<extra></extra>',
+        customdata=affinities
     ))
     
-    # Add variance explained text
-    var_text = f"PC1 explains {pca.explained_variance_ratio_[0]*100:.1f}% of variance<br>PC2 explains {pca.explained_variance_ratio_[1]*100:.1f}% of variance"
-    
     fig.update_layout(
-        title={
-            'text': 'Chemical Space Analysis (PCA) - Click dots for details',
-            'font': {'size': 18, 'color': 'white', 'family': 'Arial, sans-serif'},
-            'x': 0.5
-        },
-        height=550,
-        plot_bgcolor='rgba(30, 30, 60, 0.9)',
-        paper_bgcolor='rgba(0, 0, 0, 0)',
-        font={'color': 'white', 'family': 'Arial, sans-serif'},
-        xaxis=dict(
-            title=f"Principal Component 1 ({pca.explained_variance_ratio_[0]*100:.1f}%)",
-            titlefont=dict(size=14, color='white'),
-            tickfont=dict(size=11, color='white'),
-            gridcolor='rgba(255,255,255,0.15)',
-            zerolinecolor='rgba(255,255,255,0.2)',
-            showgrid=True,
-            showline=True,
-            linecolor='rgba(255,255,255,0.3)'
-        ),
-        yaxis=dict(
-            title=f"Principal Component 2 ({pca.explained_variance_ratio_[1]*100:.1f}%)",
-            titlefont=dict(size=14, color='white'),
-            tickfont=dict(size=11, color='white'),
-            gridcolor='rgba(255,255,255,0.15)',
-            zerolinecolor='rgba(255,255,255,0.2)',
-            showgrid=True,
-            showline=True,
-            linecolor='rgba(255,255,255,0.3)'
-        ),
-        hovermode='closest',
-        margin=dict(l=80, r=80, t=100, b=80),
-        annotations=[
-            dict(
-                x=0.02,
-                y=0.98,
-                xref='paper',
-                yref='paper',
-                text=var_text,
-                showarrow=False,
-                font=dict(size=10, color='rgba(255,255,255,0.8)'),
-                bgcolor='rgba(0,0,0,0.6)',
-                bordercolor='rgba(255,255,255,0.3)',
-                borderwidth=1,
-                borderpad=6,
-                align='left'
-            ),
-            dict(
-                x=0.98,
-                y=0.02,
-                xref='paper',
-                yref='paper',
-                text='🟢 Excellent (&lt;-8) &nbsp;&nbsp; 🟡 Good (-6 to -8) &nbsp;&nbsp; 🔴 Weak (&gt;-6)',
-                showarrow=False,
-                font=dict(size=10, color='rgba(255,255,255,0.8)'),
-                bgcolor='rgba(0,0,0,0.5)',
-                bordercolor='rgba(255,255,255,0.3)',
-                borderwidth=1,
-                borderpad=6,
-                align='right'
-            )
-        ]
+        title='Chemical Space Analysis (PCA)',
+        height=500,
+        plot_bgcolor='rgba(30,30,60,0.9)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font={'color': 'white'},
+        xaxis_title=f"PC1 ({pca.explained_variance_ratio_[0]*100:.1f}%)",
+        yaxis_title=f"PC2 ({pca.explained_variance_ratio_[1]*100:.1f}%)",
+        xaxis=dict(gridcolor='rgba(255,255,255,0.15)'),
+        yaxis=dict(gridcolor='rgba(255,255,255,0.15)')
     )
     
-    # Adjust axis ranges to prevent label cutoff
+    # Add padding to prevent label cutoff
     x_min, x_max = min(pca_result[:, 0]), max(pca_result[:, 0])
     y_min, y_max = min(pca_result[:, 1]), max(pca_result[:, 1])
-    x_padding = (x_max - x_min) * 0.25
-    y_padding = (y_max - y_min) * 0.25
+    x_padding = (x_max - x_min) * 0.2
+    y_padding = (y_max - y_min) * 0.2
     
     fig.update_xaxes(range=[x_min - x_padding, x_max + x_padding])
     fig.update_yaxes(range=[y_min - y_padding, y_max + y_padding])
@@ -404,7 +318,6 @@ def generate_similarity_heatmap(results):
     top_results = results[:8]
     n = len(top_results)
     
-    # Generate mock similarity matrix
     similarities = []
     for i in range(n):
         row = []
@@ -478,7 +391,6 @@ def generate_admet_radar(properties):
             radialaxis=dict(
                 visible=True,
                 range=[0, 1],
-                ticktext=['0', '0.2', '0.4', '0.6', '0.8', '1.0'],
                 gridcolor='rgba(255,255,255,0.2)'
             ),
             angularaxis=dict(gridcolor='rgba(255,255,255,0.2)')
